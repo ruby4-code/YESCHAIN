@@ -1,0 +1,2068 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { 
+  Home, Activity, Heart, BookOpen, User, Bell, 
+  ChevronRight, Phone, MessageCircle, Calendar, 
+  Award, Settings, LogOut, CheckCircle, Circle, 
+  AlertCircle, Send, X, MapPin, Clock, Plus,
+  FileText, Share2, Download, Pill, Utensils, Moon, 
+  Dumbbell, TrendingUp, Users, Shield, CreditCard,
+  Target, Zap, Coffee, Gift, Percent, FileCheck, Sparkles, Loader,
+  ShoppingBag, Ticket, Wallet, CheckSquare, ScanLine, Tag, Copy, 
+  HelpCircle, ExternalLink, ThumbsUp, ChevronLeft, Search, Star,
+  Smile, ArrowUp, ArrowDown, Printer, AlertTriangle, Package, Lightbulb, Info, UserPlus, Mail, PhoneCall,
+  Coins, QrCode
+} from 'lucide-react';
+import { 
+  LineChart, Line, XAxis, YAxis, CartesianGrid, 
+  Tooltip, ResponsiveContainer, AreaChart, Area, Legend, BarChart, Bar
+} from 'recharts';
+
+// --- 全域設定 ---
+const BRAND_COLOR = '#027377'; 
+const ACCENT_COLOR = '#F59E0B'; 
+const MAX_DAILY_POINTS = 30;
+const TODAY_DATE = '2025-12-19';
+
+// --- 模擬數據與設定 ---
+const generateLongTermData = () => {
+  const data = [];
+  // 修改：預設資料只生成到 12/18，留空 12/19 給使用者輸入
+  const endDate = new Date('2025-12-18'); 
+  const startDate = new Date(endDate);
+  startDate.setDate(endDate.getDate() - 100); 
+
+  for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+    const dateStr = d.toISOString().split('T')[0];
+    const daySeed = d.getTime(); 
+    
+    data.push({
+      fullDate: dateStr,
+      date: dateStr.slice(5),
+      sys: 120 + Math.floor(Math.sin(daySeed) * 10) + 5,
+      dia: 80 + Math.floor(Math.cos(daySeed) * 5),
+      sugar: 100 + Math.floor(Math.random() * 20) - 5,
+      weight: 68 - ((d - startDate) / (1000 * 60 * 60 * 24)) * 0.02 + (Math.random() * 0.2), 
+      sleep: Number((6.5 + Math.random() * 2).toFixed(1)),
+    });
+  }
+  return data;
+};
+
+// 這是初始靜態數據，後面會轉為 State
+const initialHealthData = generateLongTermData();
+
+const tasksMock = [
+  { id: 1, text: '測量血壓 (早)', type: 'health', completed: false, points: 5 }, 
+  { id: 3, text: '飲食紀錄 (午餐)', type: 'diet', completed: false, points: 5 },
+  { id: 4, text: '健走 30 分鐘', type: 'exercise', completed: false, points: 10 },
+  { id: 5, text: '測量血糖 (飯後)', type: 'sugar', completed: false, points: 5 },
+];
+
+const medicationInitial = [
+  { id: 1, name: '降血壓藥 (Amlodipine)', dosage: 1, unit: '顆', time: '08:00', frequency: '每日一次', stock: 4, taken: false },
+  { id: 2, name: '維生素 B 群', dosage: 1, unit: '錠', time: '12:00', frequency: '每日一次', stock: 20, taken: false },
+];
+
+// 初始共享資料
+const initialSharedWithMe = [
+  { id: 'u1', name: '林美珠', relation: '母親', avatar: '母', status: 'active' }
+];
+
+const initialSharedWithOthers = [
+  { id: 'u2', name: '陳子豪', relation: '兒子', status: 'active', avatar: '子' }
+];
+
+// 擴充報告數據
+const reportsMock = [
+  { 
+    id: 1, 
+    title: '2025年11月 健康月報', 
+    date: '2025/12/01', 
+    rangeStart: '2025-11-01', 
+    rangeEnd: '2025-11-30',
+    score: 88,
+    summary: '血壓控制平穩，睡眠品質提升，請繼續保持！',
+    goals: { bp: 95, sugar: 80, exercise: 60 },
+    advice: {
+      lifestyle: '入冬溫差大，早晨起床請記得添加衣物，避免冷空氣刺激血管。',
+      diet: '本月鈉攝取量略高，建議減少火鍋湯底與沾醬的使用，多攝取深綠色蔬菜。',
+      exercise: '步行數達標率 60%，建議晚餐後可增加 15 分鐘快走。'
+    },
+    tasks: { completed: 120, missed: 0, totalPoints: 855 } 
+  },
+  { 
+    id: 2, 
+    title: '2025年10月 健康月報', 
+    date: '2025/11/01', 
+    rangeStart: '2025-10-01', 
+    rangeEnd: '2025-10-31',
+    score: 82,
+    summary: '血糖波動較大，需注意澱粉攝取。',
+    goals: { bp: 90, sugar: 70, exercise: 85 },
+    advice: {
+      lifestyle: '睡眠時間較不固定，建議設定鬧鐘提醒就寢。',
+      diet: '減少精緻澱粉（如麵包、蛋糕），改以地瓜或糙米飯為主食。',
+      exercise: '運動表現優異，請維持目前的運動強度。'
+    },
+    tasks: { completed: 110, missed: 20, totalPoints: 745 }
+  },
+];
+
+const couponsMock = [
+  { id: 'c1', title: 'NT$ 100 折價券', cost: 500, desc: '滿 $1000 可使用', type: 'coupon' },
+  { id: 'c2', title: 'NT$ 200 折價券', cost: 1000, desc: '滿 $2000 可使用', type: 'coupon' },
+  { id: 'c3', title: 'NT$ 500 折價券', cost: 1400, desc: '滿 $4000 可使用', type: 'coupon' },
+];
+
+const giftsMock = [
+  { id: 'g1', title: '綜合維他命 (7日份)', cost: 200, desc: '補充每日所需營養', icon: '💊', type: 'gift' },
+  { id: 'g2', title: 'B群活力錠 (30日份)', cost: 2000, desc: '增強體力精神旺盛', icon: '⚡️', type: 'gift' },
+  { id: 'g3', title: '優質益生菌 (30日份)', cost: 2000, desc: '調整體質幫助消化', icon: '🦠', type: 'gift' },
+];
+
+const healthArticles = [
+  { id: 1, title: '我需要補充B群嗎？尚恩藥師解答缺乏B群的5大症狀', tag: 'B群', url: 'https://www.yesnet.com.tw/blogs/%E8%97%A5%E5%B8%AB%E6%95%99%E4%BD%A0%E9%81%B8/145435', image: null },
+  { id: 2, title: '葉黃素大解密！宜婷藥師來解惑！', tag: '葉黃素', url: 'https://www.yesnet.com.tw/blogs/%E8%97%A5%E5%B8%AB%E6%95%99%E4%BD%A0%E9%81%B8/145436', image: null },
+  { id: 3, title: '如何有效緩解胃食道逆流與胃脹氣問題', tag: '腸胃健康', url: 'https://www.yesnet.com.tw/blogs/%E8%97%A5%E5%B8%AB%E6%95%99%E4%BD%A0%E9%81%B8/154665', image: null },
+  { id: 4, title: '關節保健品怎麼選？', tag: '關節保養', url: 'https://www.yesnet.com.tw/blogs/%E8%97%A5%E5%B8%AB%E6%95%99%E4%BD%A0%E9%81%B8/159988', image: null },
+  { id: 5, title: '甘苦人集合！護肝保健這樣吃！', tag: '護肝', url: 'https://www.yesnet.com.tw/blogs/%E8%97%A5%E5%B8%AB%E6%95%99%E4%BD%A0%E9%81%B8/163878', image: null },
+  { id: 6, title: '容易累、爬一層樓就會喘？可能是身體缺乏Q10！', tag: '心肺功能', url: 'https://www.yesnet.com.tw/blogs/%E8%97%A5%E5%B8%AB%E6%95%99%E4%BD%A0%E9%81%B8/172587', image: null },
+  { id: 7, title: '睡不好想補充鎂？選對型態很重要！', tag: '睡眠品質', url: 'https://www.yesnet.com.tw/blogs/%E8%97%A5%E5%B8%AB%E6%95%99%E4%BD%A0%E9%81%B8/177100', image: null },
+];
+
+const chatbotOptions = [
+  { label: '頭暈可能是什麼原因？', response: '常見原因包含低血壓、脫水、睡眠不足或血糖波動。我可以幫你快速檢查最近的紀錄，或提供你需要立即留意的警訊。' },
+  { label: '我忘記吃血壓藥了怎麼辦？', response: '一般建議在想起時盡快補吃，但若已接近下一次服用時間，請勿重複加量。我可以依你的服藥紀錄提供最安全的處理方式。' },
+  { label: '這個藥可以跟維他命一起吃嗎？', response: '根據藥物成分與常見營養品的交互作用判斷，多數維他命可與此藥物併用，但建議間隔至少一小時。' },
+  { label: '最近睡眠好像變差', response: '根據紀錄，你過去七天平均睡 5.6 小時，比前一週下降。我可以提供改善建議，或建立「固定睡眠提醒」。' },
+  { label: '我晚餐吃滷肉飯會影響血壓嗎？', response: '滷肉飯的油脂與鈉含量偏高，可能讓血壓在短期上升。我可以為你提供更健康的替代建議，或加入「飲食紀錄」。' },
+  { label: '今天不想運動，有什麼輕鬆的選擇？', response: '我為你推薦伸展、10 分鐘快走或深呼吸緩和訓練。要不要幫你加入今日任務？' },
+];
+
+// 通知數據 
+const notificationsInitial = [
+  { 
+    id: 105, 
+    title: '⚠️ 家人血糖異常警示', 
+    desc: '您的共享對象「林美珠 (母親)」剛上傳的飯後血糖值為 210 mg/dL，已高於標準範圍。建議您撥電話關心，或提醒她注意下一餐的飲食。', 
+    time: '剛剛', 
+    type: 'alert', 
+    read: false 
+  },
+  { 
+    id: 999, 
+    title: '📩 共享邀請通知', 
+    desc: '林大華 (您的兄弟) 邀請你成為他的健康數據共享者，你將能檢視他的健康紀錄與月報。', 
+    time: '剛剛', 
+    type: 'invite', 
+    payload: { name: '林大華', relation: '兄弟', id: 'u3' },
+    read: false 
+  },
+  { 
+    id: 101, 
+    title: '⚠️ 血壓數據異常提醒', 
+    desc: '今日早上測量收縮壓為 145 mmHg，略高於標準。建議休息 15 分鐘後重新測量，若持續偏高請諮詢藥師。', 
+    time: '08:15', 
+    type: 'alert', 
+    read: false 
+  },
+  { 
+    id: 102, 
+    title: '📦 保健品補充提醒', 
+    desc: '您的「深海魚油 (Omega-3)」庫存僅剩 5 天份，請記得本週至門市領取新一季補給品。', 
+    time: '09:00', 
+    type: 'refill', 
+    read: false 
+  },
+  { 
+    id: 103, 
+    title: '💡 健康行為建議', 
+    desc: '依據近期數據，您的飯後血糖波動稍大。藥師建議：晚餐後可進行 15-20 分鐘的輕鬆散步，有助於穩定數值。', 
+    time: '昨天', 
+    type: 'advice', 
+    read: false 
+  },
+  { 
+    id: 1, 
+    title: '💌 您的 11月健康月報 已生成', 
+    desc: '親愛的，上個月的健康報告出來囉！血壓控制得不錯，藥師有些新的飲食建議給您，快來看看吧。', 
+    time: '昨天', 
+    type: 'report', 
+    relatedId: 1, 
+    read: false 
+  },
+];
+
+// ---------------------- 獨立元件區 ----------------------
+
+const TopBar = ({ title, showUser = false, onBack = null, rightAction = null, points = 0, onNotificationClick, unreadCount = 0 }) => (
+  <div className="w-full h-14 flex items-center justify-between px-4 shadow-md z-30 sticky top-0" style={{ backgroundColor: BRAND_COLOR }}>
+    <div className="flex items-center space-x-2">
+      {onBack && <button onClick={onBack} className="text-white p-1 hover:bg-white/10 rounded-full"><ChevronRight className="rotate-180" /></button>}
+      {showUser && (
+        <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white font-bold border border-white/30">
+          陳
+        </div>
+      )}
+      <h1 className="text-white text-lg font-bold tracking-wide truncate">{title}</h1>
+    </div>
+    <div className="flex space-x-3 items-center">
+      {/* 通知鈴鐺 */}
+      <button onClick={onNotificationClick} className="relative p-1 text-white hover:bg-white/10 rounded-full transition">
+        <Bell size={22} />
+        {unreadCount > 0 && (
+          <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-red-500 border-2 border-teal-800 rounded-full"></span>
+        )}
+      </button>
+
+      <div className="flex items-center bg-black/20 px-2 py-1 rounded-full">
+          <span className="text-xs text-yellow-300 font-bold mr-1">P</span>
+          <span className="text-white text-xs font-bold">{points}</span>
+      </div>
+      {rightAction}
+    </div>
+  </div>
+);
+
+const SectionHeader = ({ icon: Icon, title, actionText, onAction }) => (
+  <div className="flex justify-between items-center mb-3 mt-6 px-1">
+    <h3 className="font-bold text-gray-800 flex items-center text-lg">
+      {Icon && <Icon size={20} className="mr-2" style={{color: BRAND_COLOR}} />}
+      {title}
+    </h3>
+    {actionText && (
+      <button onClick={onAction} className="text-xs text-gray-500 hover:text-teal-600 transition flex items-center">
+        {actionText} <ChevronRight size={12} className="ml-0.5"/>
+      </button>
+    )}
+  </div>
+);
+
+const ActionButton = ({ icon: Icon, label, onClick, colorClass = "bg-white text-gray-700" }) => (
+  <button onClick={onClick} className={`flex flex-col items-center justify-center p-3 rounded-xl shadow-sm border border-gray-100 transition active:scale-95 ${colorClass}`}>
+    <div className={`w-10 h-10 rounded-full flex items-center justify-center mb-2 bg-opacity-20 ${colorClass.includes('text-white') ? 'bg-white/20' : 'bg-gray-100'}`}>
+      <Icon size={20} />
+    </div>
+    <span className="text-xs font-bold text-center leading-tight">{label}</span>
+  </button>
+);
+
+// --- Notification View ---
+const NotificationView = ({ onBack, onOpenReport, onInviteClick, points, notifications, setNotifications, setActiveTab }) => {
+  const handleNotifClick = (notif) => {
+    // 標記為已讀
+    setNotifications(prev => prev.map(n => n.id === notif.id ? {...n, read: true} : n));
+
+    if (notif.type === 'report') {
+       onOpenReport(notif.relatedId);
+    } else if (notif.type === 'invite') {
+       onInviteClick(notif);
+    } else if (notif.type === 'refill') {
+       // 跳轉至方案頁面
+       setActiveTab('plan');
+    }
+    // 修改：對於 alert 和 advice，點擊後不跳轉，僅標記已讀 (由上方 setNotifications 處理)
+  };
+
+  return (
+    <div className="pb-24 animate-fade-in bg-gray-50 min-h-screen">
+      <TopBar title="通知中心" onBack={onBack} points={points} />
+      <div className="p-4 space-y-3">
+        {notifications.map(notif => (
+          <div 
+            key={notif.id} 
+            onClick={() => handleNotifClick(notif)}
+            className={`bg-white p-4 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden transition 
+              cursor-pointer hover:shadow-md active:scale-[0.99]
+              ${notif.type === 'report' ? 'border-l-4 border-l-teal-500' : ''}
+              ${notif.type === 'alert' ? 'border-l-4 border-l-red-500 bg-red-50/30' : ''}
+              ${notif.type === 'invite' ? 'border-l-4 border-l-blue-500 bg-blue-50/30' : ''}
+              ${notif.type === 'refill' ? 'border-l-4 border-l-orange-400 bg-orange-50/30' : ''}
+              ${notif.type === 'advice' ? 'border-l-4 border-l-indigo-400 bg-indigo-50/30' : ''}
+              ${notif.read ? 'opacity-60 grayscale-[0.5]' : ''} 
+            `}
+          >
+            {!notif.read && <div className="absolute right-2 top-2 w-2 h-2 bg-red-500 rounded-full"></div>}
+            <div className="flex items-start">
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 mr-3 
+                ${notif.type === 'report' ? 'bg-teal-50 text-teal-600' : 
+                  notif.type === 'invite' ? 'bg-blue-100 text-blue-600' :
+                  notif.type === 'medication' ? 'bg-blue-50 text-blue-600' :
+                  notif.type === 'alert' ? 'bg-red-100 text-red-600' : 
+                  notif.type === 'refill' ? 'bg-orange-100 text-orange-600' :
+                  notif.type === 'advice' ? 'bg-indigo-100 text-indigo-600' :
+                  notif.type === 'task' ? 'bg-orange-50 text-orange-600' : 'bg-gray-100 text-gray-500'}`}>
+                {notif.type === 'report' ? <FileText size={20}/> : 
+                 notif.type === 'invite' ? <UserPlus size={20}/> :
+                 notif.type === 'medication' ? <Pill size={20}/> : 
+                 notif.type === 'alert' ? <AlertTriangle size={20}/> :
+                 notif.type === 'refill' ? <Package size={20}/> :
+                 notif.type === 'advice' ? <Lightbulb size={20}/> :
+                 notif.type === 'task' ? <Award size={20}/> : <Bell size={20}/>}
+              </div>
+              <div className="flex-1">
+                <div className="flex justify-between items-start mb-1">
+                  <h4 className={`font-bold text-sm ${notif.read ? 'text-gray-700' : 'text-gray-900'}`}>{notif.title}</h4>
+                  <span className="text-[10px] text-gray-400">{notif.time}</span>
+                </div>
+                <p className="text-xs text-gray-500 leading-relaxed">{notif.desc}</p>
+                {notif.type === 'report' && (
+                   <div className="mt-2 text-xs font-bold text-teal-600 flex items-center">
+                     點擊查看完整報告 <ChevronRight size={12}/>
+                   </div>
+                )}
+                {notif.type === 'invite' && (
+                   <div className="mt-2 text-xs font-bold text-blue-600 flex items-center">
+                     點擊查看邀請詳情 <ChevronRight size={12}/>
+                   </div>
+                )}
+                {notif.type === 'refill' && (
+                   <button className="mt-2 text-xs font-bold text-orange-600 bg-white border border-orange-200 px-2 py-1 rounded shadow-sm">
+                     查看本季配置
+                   </button>
+                )}
+                {(notif.type === 'alert' || notif.type === 'advice') && (
+                   <div className="mt-2">
+                     {!notif.read ? (
+                       <button className="text-xs font-bold text-white bg-teal-600 px-4 py-1.5 rounded-lg shadow-sm active:scale-95 transition">
+                         確認
+                       </button>
+                     ) : (
+                       <span className="text-xs font-bold text-gray-400 flex items-center">
+                          <CheckCircle size={14} className="mr-1"/> 已確認
+                       </span>
+                     )}
+                   </div>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+// --- Sub-Views for Health Records ---
+
+const BloodPressureView = ({ onBack, onSave, healthData, points }) => {
+  const [sys, setSys] = useState('');
+  const [dia, setDia] = useState('');
+  return (
+    <div className="pb-24 animate-fade-in bg-gray-50 min-h-screen">
+      <TopBar title="血壓紀錄" onBack={onBack} points={points} />
+      <div className="p-4 space-y-6">
+        <div className="bg-white p-5 rounded-2xl shadow-sm">
+          <h3 className="font-bold text-gray-800 mb-4">輸入今日數據 (12/19)</h3>
+          <div className="flex space-x-4 mb-4">
+            <div className="flex-1"><label className="text-xs text-gray-500 mb-1 block">收縮壓 (mmHg)</label><input type="number" value={sys} onChange={e=>setSys(e.target.value)} className="w-full bg-gray-50 p-3 rounded-lg border focus:outline-none text-center text-xl font-bold" placeholder="120" /></div>
+            <div className="flex-1"><label className="text-xs text-gray-500 mb-1 block">舒張壓 (mmHg)</label><input type="number" value={dia} onChange={e=>setDia(e.target.value)} className="w-full bg-gray-50 p-3 rounded-lg border focus:outline-none text-center text-xl font-bold" placeholder="80" /></div>
+          </div>
+          <button onClick={()=>onSave(sys, dia)} className="w-full py-3 rounded-xl text-white font-bold bg-teal-600 shadow-md active:scale-95 transition">確認儲存</button>
+        </div>
+        <div className="bg-white p-4 rounded-xl shadow-sm">
+           <h3 className="font-bold text-gray-800 mb-4">近 30 天趨勢</h3>
+           <div className="h-60 w-full"><ResponsiveContainer><LineChart data={healthData.slice(-30)}><CartesianGrid strokeDasharray="3 3" vertical={false} /><XAxis dataKey="date" tick={{fontSize:10}} interval={6} /><YAxis domain={[60, 160]} tick={{fontSize:10}} /><Tooltip /><Legend /><Line type="monotone" dataKey="sys" name="收縮壓" stroke="#EF4444" strokeWidth={2} dot={false} /><Line type="monotone" dataKey="dia" name="舒張壓" stroke="#3B82F6" strokeWidth={2} dot={false} /></LineChart></ResponsiveContainer></div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const BloodSugarView = ({ onBack, onSave, healthData, points }) => {
+  const [sugar, setSugar] = useState('');
+  return (
+    <div className="pb-24 animate-fade-in bg-gray-50 min-h-screen">
+      <TopBar title="血糖紀錄" onBack={onBack} points={points} />
+      <div className="p-4 space-y-6">
+        <div className="bg-white p-5 rounded-2xl shadow-sm"><h3 className="font-bold text-gray-800 mb-4">輸入飯後血糖 (12/19)</h3><input type="number" value={sugar} onChange={e=>setSugar(e.target.value)} className="w-full bg-gray-50 p-3 rounded-lg border focus:outline-none text-center text-xl font-bold mb-4" placeholder="mg/dL" /><button onClick={()=>onSave(sugar)} className="w-full py-3 rounded-xl text-white font-bold bg-blue-600 shadow-md active:scale-95 transition">確認儲存</button></div>
+        <div className="bg-white p-4 rounded-xl shadow-sm"><h3 className="font-bold text-gray-800 mb-4">近 30 天趨勢</h3><div className="h-60 w-full"><ResponsiveContainer><AreaChart data={healthData.slice(-30)}><CartesianGrid strokeDasharray="3 3" vertical={false} /><XAxis dataKey="date" tick={{fontSize:10}} /><YAxis domain={[80, 160]} tick={{fontSize:10}} /><Tooltip /><Area type="monotone" dataKey="sugar" name="血糖" stroke="#3B82F6" fill="#BFDBFE" /></AreaChart></ResponsiveContainer></div></div>
+      </div>
+    </div>
+  );
+};
+
+const WeightView = ({ onBack, onSave, healthData, points }) => {
+  const [weight, setWeight] = useState('');
+  return (
+  <div className="pb-24 animate-fade-in bg-gray-50 min-h-screen">
+    <TopBar title="體重紀錄" onBack={onBack} points={points} />
+    <div className="p-4 space-y-6">
+      <div className="bg-white p-5 rounded-2xl shadow-sm"><h3 className="font-bold text-gray-800 mb-4">輸入今日體重 (12/19)</h3><input type="number" value={weight} onChange={e=>setWeight(e.target.value)} className="w-full bg-gray-50 p-3 rounded-lg border focus:outline-none text-center text-xl font-bold mb-4" placeholder="kg" /><button onClick={()=>onSave(weight)} className="w-full py-3 rounded-xl text-white font-bold bg-yellow-500 shadow-md active:scale-95 transition">確認儲存</button></div>
+      <div className="bg-white p-4 rounded-xl shadow-sm"><h3 className="font-bold text-gray-800 mb-4">近 30 天趨勢 (平穩)</h3><div className="h-60 w-full"><ResponsiveContainer><LineChart data={healthData.slice(-30)}><CartesianGrid strokeDasharray="3 3" vertical={false} /><XAxis dataKey="date" tick={{fontSize:10}} /><YAxis domain={[60, 75]} tick={{fontSize:10}} /><Tooltip /><Line type="monotone" dataKey="weight" name="體重" stroke="#EAB308" strokeWidth={2} dot={false} /></LineChart></ResponsiveContainer></div></div>
+    </div>
+  </div>
+)};
+
+// 新增：睡眠紀錄視圖
+const SleepView = ({ onBack, onSave, healthData, points }) => {
+  const [sleep, setSleep] = useState('');
+  return (
+  <div className="pb-24 animate-fade-in bg-gray-50 min-h-screen">
+    <TopBar title="睡眠紀錄" onBack={onBack} points={points} />
+    <div className="p-4 space-y-6">
+      <div className="bg-white p-5 rounded-2xl shadow-sm">
+        <h3 className="font-bold text-gray-800 mb-4">昨晚睡了多久？ (12/19)</h3>
+        <input type="number" value={sleep} onChange={e=>setSleep(e.target.value)} className="w-full bg-gray-50 p-3 rounded-lg border focus:outline-none text-center text-xl font-bold mb-4" placeholder="小時 (例如: 7.5)" step="0.5" />
+        <button onClick={()=>onSave(sleep)} className="w-full py-3 rounded-xl text-white font-bold bg-indigo-500 shadow-md active:scale-95 transition">確認儲存</button>
+      </div>
+      <div className="bg-white p-4 rounded-xl shadow-sm">
+        <h3 className="font-bold text-gray-800 mb-4">近 30 天睡眠趨勢</h3>
+        <div className="h-60 w-full">
+          <ResponsiveContainer>
+            <BarChart data={healthData.slice(-30)}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="date" tick={{fontSize:10}} />
+              <YAxis domain={[0, 12]} tick={{fontSize:10}} />
+              <Tooltip />
+              <Bar dataKey="sleep" name="睡眠時數" fill="#818cf8" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+    </div>
+  </div>
+)};
+
+const DietView = ({ onBack, onSave, points }) => (
+  <div className="pb-24 animate-fade-in bg-gray-50 min-h-screen">
+    <TopBar title="飲食紀錄" onBack={onBack} points={points} />
+    <div className="p-4 space-y-4">
+      <div className="bg-white p-5 rounded-2xl shadow-sm space-y-4"><div><label className="text-sm font-bold text-gray-700 mb-1 block">飲食內容</label><input type="text" className="w-full p-3 bg-gray-50 border rounded-xl" placeholder="例如：雞腿便當、無糖綠茶" /></div><div className="grid grid-cols-2 gap-4"><div><label className="text-sm font-bold text-gray-700 mb-1 block">份量</label><select className="w-full p-3 bg-gray-50 border rounded-xl"><option>正常</option><option>少量</option><option>多量</option></select></div><div><label className="text-sm font-bold text-gray-700 mb-1 block">時間</label><input type="time" className="w-full p-3 bg-gray-50 border rounded-xl" defaultValue="12:00" /></div></div><button onClick={onSave} className="w-full py-3 rounded-xl text-white font-bold bg-green-600 shadow-md active:scale-95 transition">記錄飲食</button></div>
+      <div className="text-center text-gray-400 mt-10"><Utensils size={48} className="mx-auto mb-2 opacity-20" /><p>今日尚未有飲食紀錄</p></div>
+    </div>
+  </div>
+);
+
+const ExerciseView = ({ onBack, onSave, points }) => (
+  <div className="pb-24 animate-fade-in bg-gray-50 min-h-screen">
+    <TopBar title="運動紀錄" onBack={onBack} points={points} />
+    <div className="p-4 space-y-4">
+      <div className="bg-white p-5 rounded-2xl shadow-sm space-y-4"><div><label className="text-sm font-bold text-gray-700 mb-1 block">運動類型</label><select className="w-full p-3 bg-gray-50 border rounded-xl"><option>健走</option><option>慢跑</option><option>爬山</option><option>游泳</option><option>瑜珈</option><option>羽毛球</option><option>騎腳踏車</option></select></div><div><label className="text-sm font-bold text-gray-700 mb-1 block">時長 (分鐘)</label><input type="number" className="w-full p-3 bg-gray-50 border rounded-xl" placeholder="30" /></div><button onClick={onSave} className="w-full py-3 rounded-xl text-white font-bold bg-orange-500 shadow-md active:scale-95 transition">記錄運動</button></div>
+    </div>
+  </div>
+);
+
+const MedicationRecordView = ({ onBack, medications, points }) => {
+  const weekDays = [{d:'14',w:'日',a:false},{d:'15',w:'一',a:false},{d:'16',w:'二',a:false},{d:'17',w:'三',a:false},{d:'18',w:'四',a:false},{d:'19',w:'五',a:true},{d:'20',w:'六',a:false}];
+  return (
+    <div className="pb-24 animate-fade-in bg-gray-50 min-h-screen">
+      <TopBar title="用藥紀錄日曆" onBack={onBack} points={points} />
+      <div className="bg-white shadow-sm pb-4"><div className="flex justify-between items-center p-4 border-b border-gray-100"><button><ChevronLeft/></button><h3 className="font-bold text-gray-800">2025年 12月</h3><button><ChevronRight/></button></div><div className="flex justify-around pt-4 px-2">{weekDays.map((day, i) => (<div key={i} className={`flex flex-col items-center p-2 rounded-xl ${day.a ? 'bg-teal-600 text-white shadow-md' : 'text-gray-500'}`}><span className="text-xs mb-1">{day.w}</span><span className="font-bold text-lg">{day.d}</span>{day.a && <span className="w-1.5 h-1.5 bg-white rounded-full mt-1"></span>}</div>))}</div></div>
+      <div className="p-4 space-y-3"><h4 className="font-bold text-gray-700 ml-1">今日用藥 (12/19)</h4>{medications.map(med => (<div key={med.id} className="bg-white p-4 rounded-xl shadow-sm border-l-4 border-blue-500 flex justify-between items-center"><div><p className="font-bold text-gray-800">{med.name}</p><p className="text-xs text-gray-500">{med.time} • {med.dosage} {med.unit}</p></div><div className={`px-3 py-1 rounded text-xs font-bold ${med.taken ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-400'}`}>{med.taken ? '已服用' : '未服用'}</div></div>))}{medications.length === 0 && <p className="text-center text-gray-400 py-10">今日無用藥提醒</p>}</div>
+    </div>
+  );
+};
+
+// --- 月報 Modals: 簡單版 (紀錄區) vs 詳細版 (通知區) ---
+
+// 1. 簡單版月報 Modal (恢復成之前的樣式)
+const SimpleReportModal = ({ report, onClose, longTermData, points }) => {
+  if (!report) return null;
+  const monthData = longTermData.filter(d => d.fullDate >= report.rangeStart && d.fullDate <= report.rangeEnd);
+  const avgSys = Math.round(monthData.reduce((acc, curr) => acc + curr.sys, 0) / monthData.length) || 0;
+  const avgSugar = Math.round(monthData.reduce((acc, curr) => acc + curr.sugar, 0) / monthData.length) || 0;
+
+  return (
+    <div className="fixed inset-0 z-[80] bg-gray-50 flex flex-col animate-slide-up">
+       <TopBar title={report.title} onBack={onClose} points={points} rightAction={<button><Download className="text-white"/></button>} />
+       <div className="flex-1 overflow-y-auto p-4 space-y-6">
+          <div className="grid grid-cols-2 gap-4">
+             <div className="bg-white p-4 rounded-xl shadow-sm border-l-4 border-red-500">
+                <p className="text-xs text-gray-500">平均收縮壓</p>
+                <p className="text-2xl font-bold text-gray-800">{avgSys} <span className="text-xs font-normal">mmHg</span></p>
+             </div>
+             <div className="bg-white p-4 rounded-xl shadow-sm border-l-4 border-blue-500">
+                <p className="text-xs text-gray-500">平均飯後血糖</p>
+                <p className="text-2xl font-bold text-gray-800">{avgSugar} <span className="text-xs font-normal">mg/dL</span></p>
+             </div>
+          </div>
+          <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+             <h3 className="font-bold text-gray-800 mb-4 flex items-center">血壓趨勢</h3>
+             <div className="h-48 w-full"><ResponsiveContainer><LineChart data={monthData}><CartesianGrid strokeDasharray="3 3" vertical={false} /><XAxis dataKey="date" tick={{fontSize:10}} interval={4} /><YAxis domain={[60, 160]} tick={{fontSize:10}} /><Tooltip /><Line type="monotone" dataKey="sys" stroke="#EF4444" strokeWidth={2} dot={false} /><Line type="monotone" dataKey="dia" stroke="#3B82F6" strokeWidth={2} dot={false} /></LineChart></ResponsiveContainer></div>
+          </div>
+          <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+             <h3 className="font-bold text-gray-800 mb-4 flex items-center">血糖波動</h3>
+             <div className="h-48 w-full"><ResponsiveContainer><AreaChart data={monthData}><CartesianGrid strokeDasharray="3 3" vertical={false} /><XAxis dataKey="date" tick={{fontSize:10}} interval={4} /><YAxis domain={[80, 140]} tick={{fontSize:10}} /><Tooltip /><Area type="monotone" dataKey="sugar" stroke="#F59E0B" fill="#FEF3C7" /></AreaChart></ResponsiveContainer></div>
+          </div>
+       </div>
+    </div>
+  );
+};
+
+// 2. 詳細版月報 Modal (通知中心專用)
+const DetailedReportModal = ({ report, onClose, longTermData, points, showToast }) => {
+  if (!report) return null;
+  const monthData = longTermData.filter(d => d.fullDate >= report.rangeStart && d.fullDate <= report.rangeEnd);
+  const avgSys = Math.round(monthData.reduce((acc, curr) => acc + curr.sys, 0) / monthData.length) || 0;
+  const avgSugar = Math.round(monthData.reduce((acc, curr) => acc + curr.sugar, 0) / monthData.length) || 0;
+  const avgSleep = (monthData.reduce((acc, curr) => acc + curr.sleep, 0) / monthData.length).toFixed(1) || 0;
+
+  return (
+    // 修改: Z-Index 提升為 100，確保覆蓋 SharedUserView (90)
+    <div className="fixed inset-0 z-[100] bg-gray-50 flex flex-col animate-slide-up">
+       <TopBar 
+          title={report.title} 
+          onBack={onClose} 
+          points={points} 
+          rightAction={
+            <div className="flex space-x-2">
+              <button onClick={() => showToast('已連接印表機', 'success')} className="text-white opacity-80 hover:opacity-100"><Printer size={20}/></button>
+              <button onClick={() => showToast('正在下載 PDF...', 'success')} className="text-white opacity-80 hover:opacity-100"><Download size={20}/></button>
+            </div>
+          } 
+       />
+       <div className="flex-1 overflow-y-auto pb-10">
+          {/* 報告頭部：摘要與評分 */}
+          <div className="bg-teal-700 text-white p-6 rounded-b-3xl mb-4 relative overflow-hidden">
+             <div className="relative z-10">
+               <div className="flex justify-between items-start mb-4">
+                 <div>
+                   <h2 className="text-2xl font-bold mb-1">健康評分: {report.score}</h2>
+                   <p className="text-teal-200 text-sm">{report.summary}</p>
+                 </div>
+                 <div className="bg-white/20 p-2 rounded-lg backdrop-blur-sm">
+                   <Award size={32} className="text-yellow-300"/>
+                 </div>
+               </div>
+               
+               {/* 關鍵指標摘要 */}
+               <div className="flex justify-between text-center gap-2">
+                 <div className="flex-1 bg-white/10 rounded-lg p-2">
+                   <p className="text-xs text-teal-200 mb-1">平均收縮壓</p>
+                   <p className="font-bold text-lg">{avgSys}</p>
+                 </div>
+                 <div className="flex-1 bg-white/10 rounded-lg p-2">
+                   <p className="text-xs text-teal-200 mb-1">平均血糖</p>
+                   <p className="font-bold text-lg">{avgSugar}</p>
+                 </div>
+                 <div className="flex-1 bg-white/10 rounded-lg p-2">
+                   <p className="text-xs text-teal-200 mb-1">平均睡眠</p>
+                   <p className="font-bold text-lg">{avgSleep}h</p>
+                 </div>
+               </div>
+             </div>
+             {/* 裝飾背景 */}
+             <div className="absolute top-[-20%] right-[-10%] w-40 h-40 bg-teal-500 rounded-full opacity-30 blur-3xl"></div>
+          </div>
+
+          <div className="px-4 space-y-4">
+            {/* 1. 健康目標達成率 */}
+            <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+               <SectionHeader icon={Target} title="本月目標達成率" />
+               <div className="space-y-4">
+                 <div>
+                   <div className="flex justify-between text-sm mb-1">
+                     <span className="text-gray-600">血壓控制 (目標: 95%)</span>
+                     <span className="font-bold text-teal-600">{report.goals.bp}%</span>
+                   </div>
+                   <div className="w-full bg-gray-100 rounded-full h-2">
+                     <div className="bg-teal-500 h-2 rounded-full" style={{width: `${report.goals.bp}%`}}></div>
+                   </div>
+                 </div>
+                 <div>
+                   <div className="flex justify-between text-sm mb-1">
+                     <span className="text-gray-600">血糖穩定 (目標: 90%)</span>
+                     <span className="font-bold text-blue-500">{report.goals.sugar}%</span>
+                   </div>
+                   <div className="w-full bg-gray-100 rounded-full h-2">
+                     <div className="bg-blue-500 h-2 rounded-full" style={{width: `${report.goals.sugar}%`}}></div>
+                   </div>
+                 </div>
+                 <div>
+                   <div className="flex justify-between text-sm mb-1">
+                     <span className="text-gray-600">運動時數 (目標: 100%)</span>
+                     <span className={`font-bold ${report.goals.exercise < 80 ? 'text-orange-500' : 'text-green-500'}`}>{report.goals.exercise}%</span>
+                   </div>
+                   <div className="w-full bg-gray-100 rounded-full h-2">
+                     <div className={`h-2 rounded-full ${report.goals.exercise < 80 ? 'bg-orange-500' : 'bg-green-500'}`} style={{width: `${report.goals.exercise}%`}}></div>
+                   </div>
+                 </div>
+               </div>
+            </div>
+
+            {/* 2. 詳細趨勢圖表 */}
+            <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+               <h3 className="font-bold text-gray-800 mb-4 flex items-center"><Activity size={18} className="mr-2 text-teal-600"/> 詳細數據趨勢</h3>
+               
+               <div className="mb-6">
+                 <p className="text-xs font-bold text-gray-500 mb-2">血壓變化 (收縮/舒張)</p>
+                 <div className="h-40 w-full"><ResponsiveContainer><LineChart data={monthData}><CartesianGrid strokeDasharray="3 3" vertical={false} /><XAxis dataKey="date" tick={{fontSize:10}} interval={4} /><YAxis domain={[60, 160]} tick={{fontSize:10}} /><Tooltip /><Line type="monotone" dataKey="sys" stroke="#EF4444" strokeWidth={2} dot={false} /><Line type="monotone" dataKey="dia" stroke="#3B82F6" strokeWidth={2} dot={false} /></LineChart></ResponsiveContainer></div>
+               </div>
+
+               <div className="mb-6">
+                 <p className="text-xs font-bold text-gray-500 mb-2">飯後血糖 (mg/dL)</p>
+                 <div className="h-40 w-full"><ResponsiveContainer><AreaChart data={monthData}><CartesianGrid strokeDasharray="3 3" vertical={false} /><XAxis dataKey="date" tick={{fontSize:10}} interval={4} /><YAxis domain={[80, 150]} tick={{fontSize:10}} /><Tooltip /><Area type="monotone" dataKey="sugar" stroke="#F59E0B" fill="#FEF3C7" /></AreaChart></ResponsiveContainer></div>
+               </div>
+
+               <div>
+                 <p className="text-xs font-bold text-gray-500 mb-2">每日睡眠 (小時)</p>
+                 <div className="h-32 w-full"><ResponsiveContainer><BarChart data={monthData}><CartesianGrid strokeDasharray="3 3" vertical={false} /><XAxis dataKey="date" tick={{fontSize:10}} interval={4} /><YAxis domain={[0, 10]} tick={{fontSize:10}} /><Tooltip /><Bar dataKey="sleep" fill="#6366f1" radius={[4, 4, 0, 0]} /></BarChart></ResponsiveContainer></div>
+               </div>
+            </div>
+
+            {/* 3. 藥師建議 (重點) */}
+            <div className="bg-gradient-to-br from-indigo-50 to-blue-50 p-5 rounded-xl border border-indigo-100">
+               <SectionHeader icon={Sparkles} title="藥師專屬建議" />
+               <div className="space-y-3">
+                 <div className="flex gap-3 bg-white p-3 rounded-lg shadow-sm">
+                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center shrink-0 text-blue-600"><Smile size={18}/></div>
+                    <div>
+                      <h4 className="text-sm font-bold text-gray-800">下一階段生活調整</h4>
+                      <p className="text-xs text-gray-600 mt-1 leading-relaxed">{report.advice.lifestyle}</p>
+                    </div>
+                 </div>
+                 <div className="flex gap-3 bg-white p-3 rounded-lg shadow-sm">
+                    <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center shrink-0 text-green-600"><Utensils size={18}/></div>
+                    <div>
+                      <h4 className="text-sm font-bold text-gray-800">飲食建議</h4>
+                      <p className="text-xs text-gray-600 mt-1 leading-relaxed">{report.advice.diet}</p>
+                    </div>
+                 </div>
+                 <div className="flex gap-3 bg-white p-3 rounded-lg shadow-sm">
+                    <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center shrink-0 text-orange-600"><Dumbbell size={18}/></div>
+                    <div>
+                      <h4 className="text-sm font-bold text-gray-800">運動建議</h4>
+                      <p className="text-xs text-gray-600 mt-1 leading-relaxed">{report.advice.exercise}</p>
+                    </div>
+                 </div>
+               </div>
+            </div>
+
+            {/* 4. 任務與積分回顧 */}
+            <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 mb-6">
+              <SectionHeader icon={Award} title="本月健康任務回顧" />
+              <div className="flex justify-between items-center bg-gray-50 p-4 rounded-lg mb-3">
+                 <div className="text-center">
+                   <p className="text-2xl font-bold text-gray-800">{report.tasks.totalPoints}</p>
+                   <p className="text-xs text-gray-500">獲得積分</p>
+                 </div>
+                 <div className="h-8 w-[1px] bg-gray-200"></div>
+                 <div className="text-center">
+                   <p className="text-2xl font-bold text-green-600">{report.tasks.completed}</p>
+                   <p className="text-xs text-gray-500">完成任務</p>
+                 </div>
+                 <div className="h-8 w-[1px] bg-gray-200"></div>
+                 <div className="text-center">
+                   <p className="text-2xl font-bold text-orange-500">{report.tasks.missed}</p>
+                   <p className="text-xs text-gray-500">未達標</p>
+                 </div>
+              </div>
+            </div>
+
+            {/* 底部按鈕 */}
+            <div className="flex gap-3">
+               <button onClick={() => showToast('已上傳至共享空間', 'success')} className="flex-1 py-3 bg-teal-600 text-white rounded-xl font-bold shadow-md flex items-center justify-center">
+                  <Share2 size={18} className="mr-2"/> 分享給家人
+               </button>
+               <button onClick={() => showToast('PDF 下載中...', 'success')} className="flex-1 py-3 bg-white border border-gray-200 text-gray-700 rounded-xl font-bold flex items-center justify-center">
+                  <Download size={18} className="mr-2"/> 下載報告
+               </button>
+            </div>
+          </div>
+       </div>
+    </div>
+  );
+};
+
+
+// --- Modals (Existing) ---
+const BarcodeModal = ({ showBarcode, setShowBarcode }) => {
+  if (!showBarcode) return null;
+  return (
+    <div className="fixed inset-0 z-[70] bg-black/80 flex items-center justify-center p-6 animate-fade-in" onClick={()=>setShowBarcode(null)}>
+      <div className="bg-white w-full max-w-sm rounded-2xl overflow-hidden relative shadow-2xl" onClick={e => e.stopPropagation()}>
+         <div className={`h-4 w-full ${showBarcode.type === 'coupon' ? 'bg-orange-500' : showBarcode.type === 'payment' ? 'bg-blue-600' : 'bg-teal-500'}`}></div>
+         <div className="p-6 text-center">
+            <h3 className="text-xl font-bold text-gray-800 mb-1">{showBarcode.title}</h3>
+            <p className="text-sm text-gray-500 mb-6">{showBarcode.desc}</p>
+            <div className="bg-gray-100 p-6 rounded-lg mb-6 border-2 border-dashed border-gray-300 relative group">
+               <div className="h-24 w-full flex items-center justify-center space-x-1 overflow-hidden opacity-80 group-hover:opacity-100 transition">
+                  {[...Array(40)].map((_, i) => (<div key={i} className={`h-full ${Math.random() > 0.5 ? 'w-1' : 'w-2'} bg-black`}></div>))}
+               </div>
+               <p className="text-sm font-mono mt-3 tracking-[0.2em] text-gray-600 font-bold">YES-{showBarcode.uid.toString().slice(-6)}</p>
+            </div>
+            <div className="flex items-start justify-center bg-yellow-50 p-4 rounded-lg text-left border border-yellow-200">
+               <AlertCircle size={20} className="text-yellow-600 mr-3 shrink-0 mt-0.5"/>
+               <p className="text-sm text-yellow-800 font-bold leading-relaxed">請於結帳時出示此條碼給店員掃描，即可完成{showBarcode.type === 'payment' ? '支付' : '兌換'}。</p>
+            </div>
+         </div>
+         <button onClick={()=>setShowBarcode(null)} className="w-full py-4 bg-gray-50 text-gray-600 font-bold border-t border-gray-100 hover:bg-gray-100 transition">關閉視窗</button>
+      </div>
+    </div>
+  );
+};
+
+// --- New Supplement Modal ---
+const SupplementModal = ({ item, onClose }) => {
+  if (!item) return null;
+  return (
+    <div className="fixed inset-0 z-[70] bg-black/60 flex items-center justify-center p-4 animate-fade-in" onClick={onClose}>
+       <div className="bg-white w-full max-w-sm rounded-2xl p-5 shadow-2xl relative" onClick={e => e.stopPropagation()}>
+          <button onClick={onClose} className="absolute right-4 top-4 text-gray-400 hover:text-gray-600"><X size={20}/></button>
+          <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center"><Pill className="mr-2 text-teal-600"/>{item.name}</h3>
+          <div className="space-y-3 text-sm">
+              <div><span className="font-bold text-gray-600 block mb-1">保健品說明</span><p className="text-gray-500 bg-gray-50 p-2 rounded leading-relaxed">{item.desc}</p></div>
+              <div><span className="font-bold text-gray-600 block mb-1">使用頻率</span><p className="text-gray-500 bg-gray-50 p-2 rounded">{item.freq}</p></div>
+              <div><span className="font-bold text-gray-600 block mb-1">對應改善項目</span><p className="text-teal-600 font-bold bg-teal-50 p-2 rounded">{item.target}</p></div>
+          </div>
+       </div>
+    </div>
+  )
+}
+
+const AddMedicationModal = ({ onClose, onAdd }) => {
+  const [localName, setLocalName] = useState('');
+  const [localTime, setLocalTime] = useState('08:00');
+  const [localDosage, setLocalDosage] = useState(1);
+  const [localStock, setLocalStock] = useState(30);
+  const [localFreq, setLocalFreq] = useState('每日一次');
+  const handleSubmit = () => { if (!localName) return; onAdd({ name: localName, time: localTime, dosage: localDosage, stock: localStock, frequency: localFreq }); };
+  return (
+    <div className="fixed inset-0 z-[60] bg-black/50 flex items-end sm:items-center justify-center animate-fade-in">
+       <div className="bg-white w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl p-6 shadow-2xl">
+          <div className="flex justify-between items-center mb-6"><h3 className="font-bold text-xl text-gray-800">新增用藥提醒</h3><button onClick={onClose}><X size={24} className="text-gray-400"/></button></div>
+          <div className="space-y-4">
+             <div><label className="text-sm font-bold text-gray-600 mb-1 block">藥物名稱</label><input type="text" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:border-teal-500 text-lg" placeholder="例如：降血壓藥" value={localName} onChange={(e) => setLocalName(e.target.value)} /></div>
+             <div className="grid grid-cols-2 gap-4">
+                <div><label className="text-sm font-bold text-gray-600 mb-1 block">頻率</label><select className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none" value={localFreq} onChange={(e) => setLocalFreq(e.target.value)}><option>每日一次</option><option>每日兩次</option><option>每日三次</option><option>睡前服用</option></select></div>
+                <div><label className="text-sm font-bold text-gray-600 mb-1 block">時間</label><input type="time" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none" value={localTime} onChange={(e) => setLocalTime(e.target.value)} /></div>
+             </div>
+             <div className="grid grid-cols-2 gap-4">
+                <div><label className="text-sm font-bold text-gray-600 mb-1 block">單次劑量 (顆)</label><input type="number" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none" value={localDosage} onChange={(e) => setLocalDosage(Number(e.target.value))} /></div>
+                <div><label className="text-sm font-bold text-gray-600 mb-1 block">目前持有 (顆)</label><input type="number" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none" value={localStock} onChange={(e) => setLocalStock(Number(e.target.value))} /></div>
+             </div>
+             <button onClick={handleSubmit} className="w-full py-3.5 bg-teal-600 text-white rounded-xl font-bold shadow-lg hover:bg-teal-700 transition active:scale-95 mt-4">確認新增</button>
+          </div>
+       </div>
+    </div>
+  );
+};
+
+const FamilyModal = ({ showFamilyModal, setShowFamilyModal, setShowFullReport, showToast }) => {
+  if (!showFamilyModal) return null;
+  return (
+     <div className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4 animate-fade-in">
+        <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl">
+           <div className="p-4 bg-teal-700 text-white flex justify-between items-center">
+              <h3 className="font-bold text-lg">家人詳細資料</h3>
+              <button onClick={()=>setShowFamilyModal(false)}><X size={20}/></button>
+           </div>
+           <div className="p-6 text-center">
+              <div className="w-20 h-20 bg-gray-200 rounded-full mx-auto flex items-center justify-center text-3xl font-bold text-gray-500 mb-3 border-4 border-white shadow-md">母</div>
+              <h2 className="text-xl font-bold text-gray-800">林美珠 (母親)</h2>
+              <p className="text-sm text-gray-500 mb-4">70 歲 | 躍獅健康同行 — 90天改善計畫</p>
+              <div className="bg-orange-50 p-3 rounded-lg mb-6 text-left border border-orange-100">
+                 <p className="text-xs text-gray-500 mb-1">今日摘要</p>
+                 <p className="text-sm font-bold text-orange-800">血壓正常 (125/78)，尚未服用降血壓藥。</p>
+              </div>
+              <div className="space-y-3">
+                 <button onClick={()=>{setShowFamilyModal(false); setShowFullReport(true);}} className="w-full py-3 bg-teal-600 text-white rounded-xl font-bold shadow-md hover:bg-teal-700 transition flex items-center justify-center">
+                    <FileText size={18} className="mr-2"/> 檢視詳細健康報告 (3個月)
+                 </button>
+                 <button onClick={()=>showToast('報告 PDF 下載中...')} className="w-full py-3 bg-white border border-gray-200 text-gray-700 rounded-xl font-bold hover:bg-gray-50 transition flex items-center justify-center">
+                    <Download size={18} className="mr-2"/> 下載報告 PDF
+                 </button>
+              </div>
+           </div>
+        </div>
+     </div>
+  );
+};
+
+const FullReportView = ({ showFullReport, setShowFullReport, showToast }) => {
+  if (!showFullReport) return null;
+  return (
+     <div className="fixed inset-0 z-[70] bg-gray-50 flex flex-col animate-slide-up">
+        <TopBar title="母親的健康報告 (近90天)" onBack={() => setShowFullReport(false)} rightAction={<button onClick={()=>showToast('下載中...')}><Download className="text-white"/></button>} />
+        <div className="flex-1 overflow-y-auto p-4 space-y-6">
+           <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+              <h3 className="font-bold text-gray-800 mb-4 flex items-center"><Activity size={18} className="mr-2 text-teal-600"/> 血壓趨勢</h3>
+              <div className="h-60 w-full">
+                 <ResponsiveContainer>
+                    <LineChart data={initialHealthData}>
+                       <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                       <XAxis dataKey="date" tick={{fontSize:10}} interval={14} />
+                       <YAxis domain={[60, 160]} tick={{fontSize:10}} />
+                       <Tooltip />
+                       <Legend />
+                       <Line type="monotone" dataKey="sys" name="收縮壓" stroke="#EF4444" strokeWidth={2} dot={false} />
+                       <Line type="monotone" dataKey="dia" name="舒張壓" stroke="#3B82F6" strokeWidth={2} dot={false} />
+                    </LineChart>
+                 </ResponsiveContainer>
+              </div>
+           </div>
+           <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+              <h3 className="font-bold text-gray-800 mb-4 flex items-center"><Utensils size={18} className="mr-2 text-orange-500"/> 飯後血糖</h3>
+              <div className="h-48 w-full">
+                 <ResponsiveContainer>
+                    <AreaChart data={initialHealthData}>
+                       <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                       <XAxis dataKey="date" tick={{fontSize:10}} interval={14} />
+                       <YAxis domain={[80, 160]} tick={{fontSize:10}} />
+                       <Tooltip />
+                       <Area type="monotone" dataKey="sugar" name="血糖" stroke="#F59E0B" fill="#FEF3C7" />
+                    </AreaChart>
+                 </ResponsiveContainer>
+              </div>
+           </div>
+           <div className="grid grid-cols-2 gap-3">
+              <div className="bg-white p-3 rounded-xl shadow-sm border border-gray-100">
+                 <h4 className="font-bold text-sm text-gray-700 mb-2">體重 (平穩)</h4>
+                 <div className="h-32 w-full">
+                    <ResponsiveContainer>
+                       <LineChart data={initialHealthData}>
+                          <YAxis domain={[60, 75]} hide />
+                          <Line type="monotone" dataKey="weight" stroke="#10B981" strokeWidth={2} dot={false} />
+                       </LineChart>
+                    </ResponsiveContainer>
+                 </div>
+              </div>
+              <div className="bg-white p-3 rounded-xl shadow-sm border border-gray-100">
+                 <h4 className="font-bold text-sm text-gray-700 mb-2">平均睡眠</h4>
+                 <div className="h-32 w-full flex items-center justify-center flex-col">
+                    <Moon size={32} className="text-indigo-400 mb-2"/>
+                    <span className="text-2xl font-bold text-gray-800">7.2</span>
+                    <span className="text-xs text-gray-500">小時/天</span>
+                 </div>
+              </div>
+           </div>
+        </div>
+     </div>
+  );
+};
+
+const ChatOverlay = ({ showChat, setShowChat, chatMessages, handleOptionClick, chatEndRef }) => {
+  if (!showChat) return null;
+  return (
+     <div className="fixed inset-0 z-50 bg-black/50 flex items-end justify-center" onClick={()=>setShowChat(false)}>
+        <div className="bg-white w-full h-[70vh] rounded-t-2xl p-4 flex flex-col" onClick={e => e.stopPropagation()}>
+           <div className="flex justify-between items-center mb-4">
+              <h3 className="font-bold text-gray-800 flex items-center"><Sparkles size={18} className="mr-2 text-yellow-500"/> AI 藥師助理</h3>
+              <button onClick={()=>setShowChat(false)}><X size={20}/></button>
+           </div>
+           <div className="flex-1 bg-gray-50 rounded-xl p-4 mb-4 overflow-y-auto">
+              {chatMessages.map((msg, i) => (
+                 <div key={i} className={`mb-3 ${msg.sender === 'user' ? 'text-right' : 'text-left'}`}>
+                    <span className={`inline-block p-3 rounded-2xl text-sm ${msg.sender === 'user' ? 'bg-teal-600 text-white' : 'bg-white border border-gray-200 text-gray-700'}`}>
+                       {msg.text}
+                    </span>
+                 </div>
+              ))}
+              <div ref={chatEndRef}></div>
+           </div>
+           <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto">
+              {chatbotOptions.map((opt, i) => (
+                 <button key={i} onClick={() => handleOptionClick(opt)} className="p-2 bg-white border border-teal-100 rounded-lg text-xs text-teal-700 font-bold hover:bg-teal-50 text-left transition">{opt.label}</button>
+              ))}
+           </div>
+        </div>
+     </div>
+  )
+}
+
+// --- Invite Confirmation Modal ---
+const InviteConfirmModal = ({ invite, onClose, onAccept, onDecline }) => {
+  if (!invite) return null;
+  return (
+    <div className="fixed inset-0 z-[80] bg-black/60 flex items-center justify-center p-4 animate-fade-in">
+       <div className="bg-white w-full max-w-sm rounded-2xl p-6 shadow-2xl relative">
+          <button onClick={onClose} className="absolute right-4 top-4 text-gray-400 hover:text-gray-600"><X size={20}/></button>
+          
+          <div className="flex flex-col items-center text-center mb-6">
+             <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mb-4 border-4 border-white shadow-md text-blue-600">
+               <UserPlus size={40} />
+             </div>
+             <h3 className="text-xl font-bold text-gray-800 mb-1">{invite.payload.name}</h3>
+             <p className="text-sm text-gray-500">關係：{invite.payload.relation}</p>
+          </div>
+
+          <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 mb-6 text-sm text-blue-900 leading-relaxed">
+             <p className="font-bold mb-2">邀請您成為健康數據共享者</p>
+             <p className="text-xs text-blue-700 mb-2">您將能檢視對方的：</p>
+             <ul className="list-disc pl-4 text-xs text-blue-700 space-y-1">
+               <li>血壓、血糖、睡眠等健康紀錄</li>
+               <li>每月健康月報</li>
+               <li>目前健康目標與進度</li>
+             </ul>
+             <p className="text-[10px] text-gray-400 mt-3 pt-2 border-t border-blue-200">* 僅提供檢視權限，不可編輯或新增資料。</p>
+          </div>
+
+          <div className="flex gap-3">
+             <button onClick={() => onDecline(invite)} className="flex-1 py-3 border border-gray-300 text-gray-600 rounded-xl font-bold hover:bg-gray-50 transition">
+               拒絕
+             </button>
+             <button onClick={() => onAccept(invite)} className="flex-1 py-3 bg-teal-600 text-white rounded-xl font-bold shadow-md hover:bg-teal-700 transition">
+               接受邀請
+             </button>
+          </div>
+       </div>
+    </div>
+  );
+};
+
+// --- Add Share Modal ---
+const AddShareModal = ({ show, onClose, onAdd }) => {
+  const [name, setName] = useState('');
+  const [relation, setRelation] = useState('父親');
+  const [phone, setPhone] = useState('');
+  const [phoneError, setPhoneError] = useState(false);
+
+  // 清空輸入內容當 modal 關閉時
+  useEffect(() => {
+    if (!show) {
+      setName('');
+      setRelation('父親');
+      setPhone('');
+      setPhoneError(false);
+    }
+  }, [show]);
+
+  if (!show) return null;
+
+  const handleSubmit = () => {
+    const phoneRegex = /^\d{10}$/;
+    if (!phoneRegex.test(phone)) {
+      setPhoneError(true);
+      return; // 阻止送出
+    }
+    onAdd({ name, relation, phone });
+  };
+
+  return (
+    <div className="fixed inset-0 z-[80] bg-black/60 flex items-end sm:items-center justify-center p-4 animate-fade-in">
+       <div className="bg-white w-full max-w-sm rounded-2xl p-6 shadow-2xl">
+          <div className="flex justify-between items-center mb-6">
+            <h3 className="font-bold text-xl text-gray-800">新增與他共享</h3>
+            <button onClick={onClose}><X size={24} className="text-gray-400"/></button>
+          </div>
+          
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-bold text-gray-600 mb-1 block">對方姓名</label>
+              <input type="text" value={name} onChange={e=>setName(e.target.value)} className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:border-teal-500" placeholder="例如：陳子豪" />
+            </div>
+            <div>
+              <label className="text-sm font-bold text-gray-600 mb-1 block">關係</label>
+              <select value={relation} onChange={e=>setRelation(e.target.value)} className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none">
+                <option>父親</option>
+                <option>母親</option>
+                <option>兒子</option>
+                <option>女兒</option>
+                <option>兄弟</option>
+                <option>姊妹</option>
+                <option>伴侶</option>
+                <option>朋友</option>
+                <option>其他</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-sm font-bold text-gray-600 mb-1 block">手機號碼 (發送邀請用)</label>
+              <input 
+                type="tel" 
+                value={phone} 
+                onChange={e => {
+                  setPhone(e.target.value);
+                  if (phoneError) setPhoneError(false);
+                }} 
+                className={`w-full p-3 bg-gray-50 border rounded-xl focus:outline-none ${phoneError ? 'border-red-500 bg-red-50' : 'border-gray-200 focus:border-teal-500'}`} 
+                placeholder="0912345678" 
+                maxLength={10}
+              />
+              {phoneError && <p className="text-xs text-red-500 mt-1 font-bold">請輸入正確的 10 位手機號碼</p>}
+            </div>
+            
+            <div className="bg-yellow-50 p-3 rounded-lg border border-yellow-100 flex items-start">
+               <Info size={16} className="text-yellow-600 mt-0.5 mr-2 shrink-0"/>
+               <p className="text-xs text-yellow-800">送出後，對方將收到邀請通知。對方接受後才算共享成功。</p>
+            </div>
+
+            <button onClick={handleSubmit} className="w-full py-3.5 bg-teal-600 text-white rounded-xl font-bold shadow-lg hover:bg-teal-700 transition active:scale-95 mt-2">
+              發送邀請
+            </button>
+          </div>
+       </div>
+    </div>
+  );
+};
+
+// --- Shared User Detailed View (Full Screen Overlay) ---
+const SharedUserView = ({ user, onClose, onOpenReport, showToast }) => {
+  if (!user) return null;
+
+  return (
+    <div className="fixed inset-0 z-[90] bg-gray-50 flex flex-col animate-slide-up">
+       {/* 移除 '唯讀模式' 的 rightAction */}
+       <TopBar 
+          title={`檢視：${user.name} (${user.relation})`} 
+          onBack={onClose} 
+       />
+       <div className="flex-1 overflow-y-auto pb-10">
+          {/* User Header Summary */}
+          <div className="bg-teal-700 p-6 pb-12 rounded-b-[2.5rem] relative shadow-md">
+             <div className="flex items-center space-x-4 mb-4">
+                <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center text-2xl font-bold text-teal-700 shadow-lg border-2 border-teal-200">
+                  {user.avatar || user.name[0]}
+                </div>
+                <div>
+                   <h2 className="text-xl font-bold text-white">{user.name}</h2>
+                   <p className="text-teal-200 text-sm">關係：{user.relation} | 狀態：正常</p>
+                </div>
+             </div>
+             {/* Key Stats Row */}
+             <div className="flex justify-between gap-2 mt-2">
+                <div className="bg-white/10 flex-1 p-2 rounded-lg backdrop-blur-sm text-center">
+                   <p className="text-[10px] text-teal-200 mb-1">今日收縮壓</p>
+                   <p className="text-white font-bold text-lg">125</p>
+                </div>
+                <div className="bg-white/10 flex-1 p-2 rounded-lg backdrop-blur-sm text-center">
+                   <p className="text-[10px] text-teal-200 mb-1">今日血糖</p>
+                   <p className="text-white font-bold text-lg">98</p>
+                </div>
+                <div className="bg-white/10 flex-1 p-2 rounded-lg backdrop-blur-sm text-center">
+                   <p className="text-[10px] text-teal-200 mb-1">睡眠時數</p>
+                   <p className="text-white font-bold text-lg">7.5</p>
+                </div>
+             </div>
+          </div>
+
+          <div className="px-4 -mt-8 relative z-10 space-y-4">
+             {/* 1. Trends */}
+             <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                <SectionHeader icon={TrendingUp} title="健康數據趨勢" />
+                <div className="h-40 w-full mb-2">
+                   <ResponsiveContainer>
+                      <LineChart data={initialHealthData.slice(-14)}>
+                         <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                         <XAxis dataKey="date" tick={{fontSize:10}} interval={2} />
+                         <YAxis domain={[60, 160]} tick={{fontSize:10}} />
+                         <Tooltip />
+                         <Line type="monotone" dataKey="sys" name="收縮壓" stroke="#EF4444" strokeWidth={2} dot={false} />
+                         <Line type="monotone" dataKey="dia" name="舒張壓" stroke="#3B82F6" strokeWidth={2} dot={false} />
+                      </LineChart>
+                   </ResponsiveContainer>
+                </div>
+                <div className="grid grid-cols-3 gap-2 text-center text-xs text-gray-500">
+                   <span className="bg-gray-50 p-1 rounded">血壓穩定</span>
+                   <span className="bg-gray-50 p-1 rounded">體重持平</span>
+                   <span className="bg-gray-50 p-1 rounded">睡眠改善</span>
+                </div>
+             </div>
+
+             {/* 2. Calendars (Simplified) */}
+             <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                <SectionHeader icon={Calendar} title="生活日曆 (本週)" />
+                <div className="flex justify-between mb-4">
+                   {['日','一','二','三','四','五','六'].map((d,i) => (
+                      <div key={i} className={`flex flex-col items-center p-2 rounded-lg ${i===5 ? 'bg-teal-50 border border-teal-100' : ''}`}>
+                         <span className="text-[10px] text-gray-400 mb-1">{d}</span>
+                         <div className={`w-2 h-2 rounded-full ${Math.random()>0.3 ? 'bg-green-400' : 'bg-gray-300'}`}></div>
+                      </div>
+                   ))}
+                </div>
+                <div className="space-y-2">
+                   <div className="flex items-center text-sm p-2 bg-gray-50 rounded">
+                      <Pill size={16} className="text-blue-500 mr-3"/>
+                      <span className="flex-1 text-gray-700">用藥達成率</span>
+                      <span className="font-bold text-blue-600">100%</span>
+                   </div>
+                   <div className="flex items-center text-sm p-2 bg-gray-50 rounded">
+                      <Utensils size={16} className="text-green-500 mr-3"/>
+                      <span className="flex-1 text-gray-700">飲食紀錄</span>
+                      <span className="font-bold text-green-600">85%</span>
+                   </div>
+                </div>
+             </div>
+
+             {/* 3. Reports List */}
+             <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                <SectionHeader icon={FileText} title="詳細月報" />
+                <div className="divide-y divide-gray-100">
+                   {reportsMock.map(report => (
+                      <div key={report.id} className="py-3 flex items-center justify-between">
+                         <div className="flex items-center">
+                            <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-lg flex items-center justify-center mr-3">
+                               <FileText size={20}/>
+                            </div>
+                            <div>
+                               <p className="font-bold text-sm text-gray-800">{report.title}</p>
+                               <p className="text-[10px] text-gray-400">評分: {report.score} | {report.date}</p>
+                            </div>
+                         </div>
+                         <div className="flex space-x-2">
+                            <button onClick={() => showToast('月報已下載', 'success')} className="p-2 text-gray-400 hover:text-teal-600 bg-gray-50 rounded-full">
+                               <Download size={16}/>
+                            </button>
+                            <button onClick={() => onOpenReport(report)} className="p-2 text-white bg-teal-600 rounded-full shadow-sm text-xs font-bold px-3">
+                               查看
+                            </button>
+                         </div>
+                      </div>
+                   ))}
+                </div>
+             </div>
+
+             {/* 4. Advice & Goals Summary */}
+             <div className="grid grid-cols-2 gap-3 pb-6">
+                <div className="bg-orange-50 p-3 rounded-xl border border-orange-100">
+                   <div className="flex items-center mb-2 text-orange-800 font-bold text-sm">
+                      <Target size={16} className="mr-1"/> 目標達成
+                   </div>
+                   <div className="text-2xl font-bold text-orange-600 mb-1">85%</div>
+                   <p className="text-[10px] text-orange-400">本月進度良好</p>
+                </div>
+                <div className="bg-blue-50 p-3 rounded-xl border border-blue-100">
+                   <div className="flex items-center mb-2 text-blue-800 font-bold text-sm">
+                      <Sparkles size={16} className="mr-1"/> 藥師建議
+                   </div>
+                   <p className="text-xs text-blue-600 leading-snug line-clamp-2">建議增加深綠色蔬菜攝取，並維持每日快走。</p>
+                </div>
+             </div>
+          </div>
+       </div>
+    </div>
+  );
+}
+
+// --- Views (Restored and Fixed) ---
+
+const HomeView = ({ dailyEarned, handleCheckIn, hasCheckedIn, points, setActiveTab, medications, takeMedication, setShowAddMedModal, showToast, tasks, toggleTask, onNotificationClick, handleOpenSharedUser }) => (
+  <div className="pb-24 animate-fade-in bg-gray-50">
+    <TopBar title="健康總覽" showUser={true} points={points} onNotificationClick={onNotificationClick} unreadCount={3} />
+    {/* 點擊母親區塊，直接開啟 SharedUserView */}
+    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-4 py-3 flex items-center justify-between border-b border-blue-100 cursor-pointer" onClick={() => handleOpenSharedUser(initialSharedWithMe[0])}>
+       <div className="flex items-center"><div className="bg-white p-1 rounded-full shadow-sm mr-3"><Users size={16} className="text-blue-600"/></div><div><p className="text-[10px] text-gray-500 font-bold mb-0.5">母親 (90天改善計畫)</p><p className="text-xs text-gray-800 font-bold">血壓正常，尚未服藥。</p></div></div><ChevronRight size={16} className="text-blue-400"/>
+    </div>
+    <div className="bg-white p-4 mb-2 shadow-sm">
+       <div className="flex justify-between items-center mb-2"><div><h2 className="font-bold text-gray-800 flex items-center"><Award className="text-yellow-500 mr-2" size={20}/><span className="text-sm">今日已獲：{dailyEarned}/{MAX_DAILY_POINTS}</span></h2><div className="w-24 bg-gray-100 rounded-full h-1.5 mt-1"><div className="h-full rounded-full transition-all duration-500" style={{ width: `${(dailyEarned/MAX_DAILY_POINTS)*100}%`, backgroundColor: ACCENT_COLOR }}></div></div></div><button onClick={handleCheckIn} disabled={hasCheckedIn} className={`text-xs px-3 py-1.5 rounded-full font-bold border transition-all active:scale-95 ${hasCheckedIn ? 'bg-gray-100 text-gray-400 border-gray-200' : 'bg-teal-50 text-teal-700 border-teal-200 hover:bg-teal-100'}`}>{hasCheckedIn ? '今日已簽到' : '每日簽到 (+10)'}</button></div>
+       <div className="grid grid-cols-2 gap-3 mt-3"><button onClick={() => setActiveTab('coupons')} className="py-2 border rounded-lg text-sm text-gray-600 flex items-center justify-center hover:bg-gray-50 transition"><Ticket size={16} className="mr-1 text-orange-500"/> 兌換折價券</button><button onClick={() => setActiveTab('gifts')} className="py-2 border rounded-lg text-sm text-gray-600 flex items-center justify-center hover:bg-gray-50 transition"><Gift size={16} className="mr-1 text-red-500"/> 兌換小禮品</button></div>
+    </div>
+    <div className="mx-4 mt-2"><SectionHeader icon={Pill} title="今日用藥提醒" actionText="編輯 / 新增" onAction={() => setShowAddMedModal(true)} /><div className="bg-white rounded-xl shadow-sm border-l-4 border-blue-500 divide-y divide-gray-50">{medications.map(med => { const daysLeft = Math.floor(med.stock / (med.dosage * 1)); const isLowStock = daysLeft < 5; return (<div key={med.id} className="p-4 flex flex-col space-y-3"><div className="flex justify-between items-start"><div><p className="font-bold text-gray-800 text-lg">{med.name}</p><p className="text-xs text-gray-500">{med.time} • {med.frequency} • {med.dosage} {med.unit}</p></div><div className="text-right">{isLowStock ? <span className="text-xs font-bold text-red-500 bg-red-50 px-2 py-1 rounded">剩 {daysLeft} 天份</span> : <span className="text-xs font-bold text-teal-600 bg-teal-50 px-2 py-1 rounded">庫存充足</span>}</div></div><div className="flex items-center space-x-2"><button onClick={() => takeMedication(med.id)} disabled={med.taken} className={`flex-1 py-2 rounded-lg text-sm font-bold flex items-center justify-center transition active:scale-95 ${med.taken ? 'bg-gray-100 text-gray-400 cursor-default' : 'bg-blue-600 text-white shadow-md'}`}>{med.taken ? <><CheckCircle size={16} className="mr-1"/> 已服用</> : '確認服用'}</button>{isLowStock && (<button onClick={() => showToast('已加入手機行事曆：領藥提醒', 'info')} className="flex-1 py-2 border border-red-200 text-red-600 bg-red-50 rounded-lg text-sm font-bold flex items-center justify-center active:scale-95"><Calendar size={16} className="mr-1"/> 預約領藥</button>)}</div></div>);})}{medications.length === 0 && <p className="p-4 text-center text-gray-400 text-sm">目前沒有設定用藥提醒</p>}</div></div>
+    <div className="mx-4 mb-4"><SectionHeader icon={CheckSquare} title="今日健康任務" /><div className="bg-white rounded-xl shadow-sm p-4"><div className="flex justify-between items-center mb-3"><span className="text-sm font-bold text-gray-700">完成度</span><span className="text-xs text-gray-400">{tasks.filter(t=>t.completed).length}/{tasks.length}</span></div><div className="w-full bg-gray-100 rounded-full h-2 mb-4"><div className="bg-teal-500 h-2 rounded-full transition-all duration-500" style={{width: `${(tasks.filter(t=>t.completed).length/tasks.length)*100}%`}}></div></div><div className="space-y-2">{tasks.map(task => (<div key={task.id} onClick={() => toggleTask(task.id)} className={`p-3 rounded-lg border flex items-center justify-between transition cursor-pointer ${task.completed ? 'bg-gray-50 border-gray-100 opacity-60' : 'bg-white border-gray-200 hover:shadow-md'}`}><div className="flex items-center">{task.completed ? <CheckCircle className="text-teal-600 mr-3" size={20} /> : <Circle className="text-gray-300 mr-3" size={20} />}<span className="text-sm text-gray-800">{task.text}</span></div>{!task.completed && <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full">+{task.points}</span>}</div>))}</div></div></div>
+  </div>
+);
+
+const EduView = ({ setShowChat, showToast, points, setPoints, onNotificationClick, favorites, setFavorites }) => {
+  const [quizStatus, setQuizStatus] = useState('idle');
+  const [searchTerm, setSearchTerm] = useState('');
+  const filteredArticles = healthArticles.filter(article => article.title.toLowerCase().includes(searchTerm.toLowerCase()) || article.tag.toLowerCase().includes(searchTerm.toLowerCase()));
+  const handleQuizAnswer = (isCorrect) => {
+    if (quizStatus === 'correct') return;
+    if (isCorrect) { setQuizStatus('correct'); setPoints(p => p + 15); showToast('🎉 答對了！恭喜獲得 15 點！', 'success'); } 
+    else { setQuizStatus('wrong'); showToast('答錯囉，再試一次看看！', 'error'); }
+  };
+
+  const toggleFavorite = (article) => {
+    const exists = favorites.find(f => f.id === article.id);
+    if (exists) {
+      setFavorites(favorites.filter(f => f.id !== article.id));
+      showToast('已取消收藏', 'info');
+    } else {
+      setFavorites([...favorites, { ...article, dateAdded: TODAY_DATE }]);
+      showToast('已加入收藏', 'success');
+    }
+  };
+
+  return (
+    <div className="pb-24 animate-fade-in bg-gray-50 h-full flex flex-col">
+      <TopBar title="智慧衛教互動" points={points} onNotificationClick={onNotificationClick} unreadCount={3} />
+      <div className="p-4 bg-white shadow-sm space-y-3">
+         <div className="relative"><input type="text" placeholder="請輸入關鍵字搜尋 (例如：B群、葉黃素)..." className="w-full bg-gray-100 rounded-full py-2 px-4 pl-10 text-sm focus:outline-none focus:ring-1 focus:ring-teal-500" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} /><Search className="absolute left-3 top-2.5 text-gray-400" size={16} /></div>
+         <div className={`border rounded-lg p-4 transition-all duration-500 ${quizStatus === 'correct' ? 'bg-green-50 border-green-200' : 'bg-teal-50 border-teal-100'}`}>
+            <div className="flex justify-between items-center mb-2"><span className="text-xs font-bold text-teal-700 bg-white px-2 py-0.5 rounded border border-teal-200">本週問答</span><span className="text-xs text-teal-600 font-bold">+15 點</span></div>
+            <p className="text-sm font-bold text-gray-800 mb-3">服用降血壓藥物後，是否可以立即飲用葡萄柚汁？</p>
+            {quizStatus === 'correct' ? (<div className="flex items-center text-green-600 font-bold justify-center py-2 bg-white rounded-lg shadow-sm"><ThumbsUp size={18} className="mr-2"/> 答對了！已獲得獎勵</div>) : (
+               <div className="flex gap-2">
+                  <button onClick={() => handleQuizAnswer(false)} className={`flex-1 py-2 bg-white border border-gray-200 rounded text-xs text-gray-600 font-medium transition active:scale-95 ${quizStatus === 'wrong' ? 'border-red-400 text-red-500 bg-red-50' : ''}`}>可以</button>
+                  <button onClick={() => handleQuizAnswer(true)} className="flex-1 py-2 bg-white border border-gray-200 rounded text-xs text-gray-600 font-medium transition active:scale-95">不可以</button>
+               </div>
+            )}
+         </div>
+      </div>
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+         <h3 className="font-bold text-gray-700 text-sm">精選衛教文章</h3>
+         {filteredArticles.length > 0 ? filteredArticles.map((article) => {
+            const isFav = favorites.some(f => f.id === article.id);
+            return (
+            <div key={article.id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition">
+               <div className="flex justify-between items-start mb-2"><span className="text-[10px] px-2 py-0.5 bg-teal-50 text-teal-700 rounded border border-teal-100">{article.tag}</span><div className="flex space-x-3 text-gray-400"><button onClick={()=>toggleFavorite(article)} className={isFav ? "text-red-500" : "hover:text-red-500"}><Heart size={16} fill={isFav ? "currentColor" : "none"}/></button><button onClick={()=>showToast('僅分享檢視權限給家人')} className="hover:text-blue-500"><Share2 size={16}/></button></div></div>
+               <h4 className="font-bold text-gray-800 text-lg mb-2">{article.title}</h4>
+               <button onClick={() => window.open(article.url, '_blank')} className="w-full py-2.5 bg-white text-teal-700 text-sm rounded-lg font-bold border border-teal-200 flex items-center justify-center hover:bg-teal-50 transition active:scale-95"><ExternalLink size={14} className="mr-2"/> 查看完整衛教文章</button>
+            </div>
+         )}) : <div className="text-center text-gray-400 py-10">找不到相關文章</div>}
+      </div>
+      <div className="p-4 bg-white border-t border-gray-200"><button onClick={()=>setShowChat(true)} className="w-full py-3 rounded-full flex items-center justify-center text-white shadow-lg transition active:scale-[0.98]" style={{backgroundColor: BRAND_COLOR}}><MessageCircle className="mr-2" size={20} /> 開啟 AI 藥師諮詢</button></div>
+    </div>
+  );
+};
+
+const HealthView = ({ points, showToast, subTab, setSubTab, medications, onNotificationClick, onViewSimpleReport, healthRecords, onUpdateBP, onUpdateSugar, onUpdateWeight, onUpdateSleep, onSaveDiet, onSaveExercise }) => {
+  if (subTab === 'bp') return <BloodPressureView onBack={()=>setSubTab(null)} onSave={onUpdateBP} healthData={healthRecords} points={points} />;
+  if (subTab === 'sugar') return <BloodSugarView onBack={()=>setSubTab(null)} onSave={onUpdateSugar} healthData={healthRecords} points={points} />;
+  if (subTab === 'weight') return <WeightView onBack={()=>setSubTab(null)} onSave={onUpdateWeight} healthData={healthRecords} points={points} />;
+  if (subTab === 'diet') return <DietView onBack={()=>setSubTab(null)} onSave={onSaveDiet} points={points} />;
+  if (subTab === 'exercise') return <ExerciseView onBack={()=>setSubTab(null)} onSave={onSaveExercise} points={points} />;
+  if (subTab === 'med') return <MedicationRecordView onBack={()=>setSubTab(null)} medications={medications} points={points} />;
+  if (subTab === 'sleep') return <SleepView onBack={()=>setSubTab(null)} onSave={onUpdateSleep} healthData={healthRecords} points={points} />;
+  
+  return (
+    <div className="pb-24 animate-fade-in bg-gray-50">
+      <TopBar title="健康紀錄與追蹤" points={points} onNotificationClick={onNotificationClick} unreadCount={3} />
+      <div className="p-4">
+         <h3 className="font-bold text-gray-700 mb-3">新增紀錄 & 查看趨勢</h3>
+         <div className="grid grid-cols-4 gap-3">
+            {[{ icon: Activity, label: '血壓', id: 'bp', color: 'bg-red-50 text-red-600' }, 
+              { icon: FileText, label: '血糖', id: 'sugar', color: 'bg-blue-50 text-blue-600' }, 
+              { icon: Users, label: '體重', id: 'weight', color: 'bg-yellow-50 text-yellow-600' }, 
+              { icon: Utensils, label: '飲食', id: 'diet', color: 'bg-green-50 text-green-600' }, 
+              { icon: Dumbbell, label: '運動', id: 'exercise', color: 'bg-orange-50 text-orange-600' }, 
+              { icon: Pill, label: '用藥', id: 'med', color: 'bg-purple-50 text-purple-600' }, 
+              { icon: Moon, label: '睡眠', id: 'sleep', color: 'bg-indigo-50 text-indigo-600' }, 
+              { icon: Plus, label: '其他', id: 'other', color: 'bg-gray-50 text-gray-600' }
+             ].map((item, idx) => (
+               <button key={idx} onClick={() => item.id === 'other' ? showToast('此功能開發中') : setSubTab(item.id)} className="flex flex-col items-center p-3 rounded-xl bg-white border border-gray-100 shadow-sm active:scale-95 transition"><div className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-1 ${item.color}`}><item.icon size={22} /></div><span className="text-xs text-gray-600 font-bold">{item.label}</span></button>
+            ))}
+         </div>
+      </div>
+      <div className="mx-4 mb-4">
+          <SectionHeader icon={FileText} title="報告中心" />
+          {/* 顯示所有月報 */}
+          <div className="bg-white rounded-xl shadow-sm divide-y divide-gray-100">
+             {reportsMock.map(report => (
+                <div key={report.id} onClick={()=>onViewSimpleReport(report)} className="p-4 flex items-center justify-between cursor-pointer hover:bg-gray-50 transition"><div className="flex items-center"><div className="w-10 h-10 bg-red-100 text-red-500 rounded-lg flex items-center justify-center mr-3"><FileText size={20}/></div><div><p className="font-bold text-sm text-gray-800">{report.title}</p><p className="text-xs text-gray-400">{report.date} 生成</p></div></div><ChevronRight size={18} className="text-gray-300"/></div>
+             ))}
+          </div>
+      </div>
+    </div>
+  );
+};
+
+const PlanView = ({ planMode, setPlanMode, showToast, points, onNotificationClick, setShowBarcode, onClaimCashback, hasClaimedCashback }) => {
+  const [selectedSupplement, setSelectedSupplement] = useState(null);
+  const [showCallConfirm, setShowCallConfirm] = useState(false);
+  const supplementsData = [
+    { id: 's1', name: '深海魚油 (Omega-3)', quantity: 'x 1 瓶', desc: '高濃度 Omega-3，有些微抗凝血作用，有助於心血管健康。', freq: '每日飯後 1 顆', target: '降低三酸甘油脂、抗發炎' },
+    { id: 's2', name: '納豆紅麴', quantity: 'x 1 盒', desc: '含 Monacolin K，有助於維持膽固醇正常。', freq: '每日睡前 1 顆', target: '調節血脂、促進代謝' }
+  ];
+
+  return (
+    <div className="pb-24 animate-fade-in bg-gray-50 min-h-screen">
+      <TopBar title="方案專區" points={points} onNotificationClick={onNotificationClick} unreadCount={3} />
+      <div className="bg-gray-800 p-3 overflow-x-auto whitespace-nowrap flex items-center"><span className="text-white text-xs mr-2 font-bold">【模式切換】：</span><div className="flex space-x-2">{[{id: 'improve', label: '90天改善'}, {id: 'challenge', label: '90天挑戰'}].map(m => (<button key={m.id} onClick={()=>setPlanMode(m.id)} className={`px-3 py-1 rounded-full text-xs font-bold transition ${planMode === m.id ? 'bg-teal-500 text-white' : 'bg-gray-700 text-gray-300'}`}>{m.label}</button>))}</div></div>
+      
+      {planMode === 'improve' && (
+        <div className="p-4 space-y-4">
+          
+          {/* 1. 90天進度條 (Timeline) */}
+          <div className="bg-teal-800 text-white p-5 rounded-2xl shadow-lg relative overflow-hidden">
+            <div className="relative z-10">
+              <div className="flex justify-between items-start mb-4">
+                <h2 className="font-bold text-lg">90天 健康同行改善計畫</h2>
+                <span className="px-2 py-0.5 bg-white/20 rounded text-[10px]">Day 35 / 90</span>
+              </div>
+              
+              <div className="relative pt-4 pb-6">
+                {/* Progress Line */}
+                <div className="w-full bg-black/20 rounded-full h-1.5 absolute top-5"></div>
+                <div className="absolute top-5 h-1.5 bg-teal-300 rounded-full" style={{width: '35%'}}></div>
+                
+                {/* Nodes */}
+                <div className="flex justify-between relative text-[10px] text-teal-200 font-bold">
+                   <div className="flex flex-col items-center">
+                      <div className="w-3 h-3 bg-teal-300 rounded-full mb-2 border-2 border-teal-800 relative z-10"></div>
+                      <span>Start</span>
+                   </div>
+                   <div className="flex flex-col items-center">
+                      <div className="w-3 h-3 bg-white/30 rounded-full mb-2 relative z-10"></div>
+                      <span>Day 45 (期中)</span>
+                   </div>
+                   <div className="flex flex-col items-center">
+                      <div className="w-3 h-3 bg-white/30 rounded-full mb-2 relative z-10"></div>
+                      <span>Day 90 (結算)</span>
+                   </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 2. 核心健康目標卡 (Core Goal Card) */}
+          <div className="bg-gradient-to-r from-orange-100 to-amber-50 p-4 rounded-xl border border-orange-200 shadow-sm relative overflow-hidden">
+             <div className="flex justify-between items-start mb-2 relative z-10">
+                <h3 className="font-bold text-orange-900 flex items-center">
+                   <Target size={18} className="mr-2"/> 核心健康目標
+                </h3>
+                <span className="text-xs bg-white text-orange-600 px-2 py-0.5 rounded font-bold border border-orange-200">進行中</span>
+             </div>
+             <p className="text-lg font-bold text-gray-800 mb-2 relative z-10">目標：90天內收縮壓降低 5 mmHg</p>
+             <div className="bg-white/60 p-3 rounded-lg flex items-start relative z-10">
+                <Sparkles size={16} className="text-yellow-500 mr-2 shrink-0 mt-0.5"/>
+                <p className="text-xs text-gray-700 font-bold">AI 評語：目前已達成 30%，進度良好！請繼續保持目前的運動頻率。</p>
+             </div>
+             <Target size={100} className="absolute -right-4 -bottom-4 text-orange-200 opacity-30 rotate-12"/>
+          </div>
+
+          {/* 4. 藥師諮詢 */}
+          <div className="bg-white p-4 rounded-xl shadow-sm">
+            <SectionHeader icon={User} title="專屬藥師諮詢" />
+            <div className="flex items-center mb-4 bg-gray-50 p-3 rounded-lg">
+              <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center mr-3 border-2 border-white shadow-sm">
+                <User size={24} className="text-gray-500"/>
+              </div>
+              <div className="flex-1">
+                <p className="font-bold text-gray-800">陳藥師 (躍獅南門店)</p>
+                <p className="text-xs text-teal-600">線上</p>
+              </div>
+              <button onClick={()=>setShowCallConfirm(true)} className="p-2 bg-teal-50 text-teal-600 rounded-full"><Phone size={18}/></button>
+            </div>
+            <div className="grid grid-cols-2 gap-3 mb-2">
+              <div className="flex flex-col">
+                 <ActionButton icon={Calendar} label="預約諮詢" onClick={()=>showToast('已預約諮詢並新增至行事曆', 'success')} />
+                 <p className="text-[10px] text-gray-400 mt-1 text-center">距 Day 45 期中諮詢剩 10 天，可提前預約</p>
+              </div>
+              <ActionButton icon={FileText} label="與藥師分享報告" onClick={()=>showToast('已與藥師分享', 'success')} />
+            </div>
+          </div>
+
+          {/* 5. 保健品配置 */}
+          <div className="bg-white p-4 rounded-xl shadow-sm">
+            <SectionHeader icon={Pill} title="本季保健品配置" />
+            <div className="space-y-2 mb-4">
+              {supplementsData.map(supp => (
+                <div key={supp.id} onClick={() => setSelectedSupplement(supp)} className="flex justify-between items-center text-sm text-gray-600 border-b border-gray-50 pb-2 cursor-pointer hover:bg-gray-50 p-2 rounded transition">
+                  <div className="flex items-center">
+                    <Info size={14} className="text-teal-400 mr-2"/>
+                    <span className="font-medium text-gray-700">{supp.name}</span>
+                  </div>
+                  <span>{supp.quantity}</span>
+                </div>
+              ))}
+            </div>
+            <button onClick={() => setShowBarcode({ title: '本季保健品領取', desc: '請出示此條碼給藥師核銷', uid: 'MED-PICKUP-001', type: 'coupon' })} className="w-full py-2.5 border border-teal-600 text-teal-600 rounded-lg text-sm font-bold flex items-center justify-center transition active:bg-teal-50">
+               <MapPin size={16} className="mr-2"/> 至門市領取 (出示條碼)
+            </button>
+            <div className="mt-2 text-xs text-orange-500 flex items-center">
+              <AlertCircle size={12} className="mr-1"/> 提醒：魚油剩餘 5 天份量，建議提前領取。
+            </div>
+          </div>
+        </div>
+      )}
+
+      {planMode === 'challenge' && (
+        <div className="p-4 space-y-4">
+          
+          {/* 1. 90天進度條 (Timeline) - 與改善計畫一致 */}
+          <div className="bg-teal-800 text-white p-5 rounded-2xl shadow-lg relative overflow-hidden">
+            <div className="relative z-10">
+              <div className="flex justify-between items-start mb-4">
+                <h2 className="font-bold text-lg">90天 逆轉挑戰賽</h2>
+                <span className="px-2 py-0.5 bg-white/20 rounded text-[10px]">Day 75 / 90</span>
+              </div>
+              
+              <div className="relative pt-4 pb-6">
+                {/* Progress Line */}
+                <div className="w-full bg-black/20 rounded-full h-1.5 absolute top-5"></div>
+                <div className="absolute top-5 h-1.5 bg-teal-300 rounded-full" style={{width: '83%'}}></div>
+                
+                {/* Nodes */}
+                <div className="flex justify-between relative text-[10px] text-teal-200 font-bold">
+                   <div className="flex flex-col items-center">
+                      <div className="w-3 h-3 bg-teal-300 rounded-full mb-2 border-2 border-teal-800 relative z-10"></div>
+                      <span>Start</span>
+                   </div>
+                   <div className="flex flex-col items-center">
+                      <div className="w-3 h-3 bg-teal-300 rounded-full mb-2 border-2 border-teal-800 relative z-10"></div>
+                      <span>Day 45 (期中)</span>
+                   </div>
+                   <div className="flex flex-col items-center">
+                      <div className="w-3 h-3 bg-white/30 rounded-full mb-2 relative z-10"></div>
+                      <span>Day 90 (結算)</span>
+                   </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 2. Challenge Card - Updated (Bigger & Clearer) */}
+          <div className="bg-gradient-to-br from-orange-500 to-red-600 text-white p-6 rounded-2xl shadow-lg relative overflow-hidden">
+            <div className="relative z-10">
+              <h2 className="font-bold text-lg flex items-center mb-6"><TrendingUp className="mr-2"/> 逆轉挑戰賽目標</h2>
+              
+              <div className="grid grid-cols-2 gap-4 mb-6">
+                 {/* Target Box */}
+                 <div className="bg-white/10 rounded-2xl p-4 backdrop-blur-md border border-white/20 flex flex-col items-center justify-center shadow-inner min-h-[120px]">
+                    <span className="text-orange-100 text-xs font-bold mb-2">挑戰目標 (收縮壓)</span>
+                    <div className="flex items-baseline">
+                      <span className="font-black text-5xl drop-shadow-sm tracking-tight">{'<'}130</span>
+                      <span className="text-sm ml-1 font-bold text-orange-100">mmHg</span>
+                    </div>
+                 </div>
+
+                 {/* Countdown Box */}
+                 <div className="bg-white/10 rounded-2xl p-4 backdrop-blur-md border border-white/20 flex flex-col items-center justify-center shadow-inner min-h-[120px]">
+                    <span className="text-orange-100 text-xs font-bold mb-2">期限倒數</span>
+                    <div className="flex items-baseline">
+                      <span className="font-black text-5xl text-yellow-300 drop-shadow-sm tracking-tight">15</span>
+                      <span className="text-sm ml-1 font-bold text-yellow-300">天</span>
+                    </div>
+                    <span className="text-[10px] text-orange-200 mt-1 bg-black/10 px-2 py-0.5 rounded-full">2026/01/01 結算</span>
+                 </div>
+              </div>
+
+              <div className="flex justify-between items-end bg-black/10 p-3 rounded-xl border border-white/10">
+                <div>
+                  <p className="text-xs text-orange-200 mb-0.5">達標基本回饋金</p>
+                  <p className="text-2xl font-bold tracking-wide">NT$ 1,000</p>
+                </div>
+              </div>
+            </div>
+            {/* 裝飾背景 */}
+            <div className="absolute top-0 right-0 w-40 h-40 bg-white/10 rounded-full blur-3xl -mr-10 -mt-10"></div>
+            <div className="absolute bottom-0 left-0 w-40 h-40 bg-yellow-500/20 rounded-full blur-3xl -ml-10 -mb-10"></div>
+          </div>
+
+          {/* 3. 保健品配置 (Supplements) - 與改善計畫一致 */}
+          <div className="bg-white p-4 rounded-xl shadow-sm">
+            <SectionHeader icon={Pill} title="本季保健品配置" />
+            <div className="space-y-2 mb-4">
+              {supplementsData.map(supp => (
+                <div key={supp.id} onClick={() => setSelectedSupplement(supp)} className="flex justify-between items-center text-sm text-gray-600 border-b border-gray-50 pb-2 cursor-pointer hover:bg-gray-50 p-2 rounded transition">
+                  <div className="flex items-center">
+                    <Info size={14} className="text-teal-400 mr-2"/>
+                    <span className="font-medium text-gray-700">{supp.name}</span>
+                  </div>
+                  <span>{supp.quantity}</span>
+                </div>
+              ))}
+            </div>
+            <button onClick={() => setShowBarcode({ title: '本季保健品領取', desc: '請出示此條碼給藥師核銷', uid: 'MED-PICKUP-001', type: 'coupon' })} className="w-full py-2.5 border border-teal-600 text-teal-600 rounded-lg text-sm font-bold flex items-center justify-center transition active:bg-teal-50">
+               <MapPin size={16} className="mr-2"/> 至門市領取 (出示條碼)
+            </button>
+            <div className="mt-2 text-xs text-orange-500 flex items-center">
+              <AlertCircle size={12} className="mr-1"/> 提醒：魚油剩餘 5 天份量，建議提前領取。
+            </div>
+          </div>
+
+          {/* 4. 成果驗收 (Results Acceptance) */}
+          <div className="bg-white p-4 rounded-xl shadow-sm">
+             <h3 className="font-bold text-gray-700 mb-2 flex items-center"><Award size={20} className="text-orange-500 mr-2"/>成果驗收</h3>
+             <div className="flex gap-2">
+                <button 
+                  onClick={onClaimCashback} 
+                  disabled={hasClaimedCashback} 
+                  className={`flex-1 py-3 border rounded-lg text-sm font-bold flex items-center justify-center transition ${hasClaimedCashback ? 'bg-gray-100 border-gray-200 text-gray-400' : 'border-orange-200 text-orange-600 hover:bg-orange-50'}`}
+                >
+                  {hasClaimedCashback ? <><CheckCircle size={16} className="mr-2"/> 已領取</> : <><Coins size={16} className="mr-2"/> 領取回饋金</>}
+                </button>
+                <button onClick={()=>showToast('已為您預約報名')} className="flex-1 py-3 bg-teal-50 text-teal-700 rounded-lg text-sm font-bold hover:bg-teal-100 transition flex items-center justify-center">
+                  <FileText size={16} className="mr-2"/> 報名下一季
+                </button>
+             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Supplement Modal */}
+      <SupplementModal item={selectedSupplement} onClose={() => setSelectedSupplement(null)} />
+      
+      {/* Phone Confirmation Modal */}
+      {showCallConfirm && (
+        <div className="fixed inset-0 z-[80] bg-black/60 flex items-center justify-center p-4 animate-fade-in">
+           <div className="bg-white w-full max-w-sm rounded-2xl p-6 shadow-2xl relative">
+              <h3 className="text-xl font-bold text-gray-800 mb-4 text-center">是否撥打藥師諮詢電話？</h3>
+              <div className="flex gap-3">
+                 <button onClick={() => setShowCallConfirm(false)} className="flex-1 py-3 border border-gray-300 text-gray-600 rounded-xl font-bold hover:bg-gray-50 transition">
+                   取消
+                 </button>
+                 <button onClick={() => { setShowCallConfirm(false); showToast('正在撥打電話', 'success'); }} className="flex-1 py-3 bg-teal-600 text-white rounded-xl font-bold shadow-md hover:bg-teal-700 transition flex items-center justify-center">
+                   <PhoneCall size={18} className="mr-2"/> 撥打
+                 </button>
+              </div>
+           </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const RedeemView = ({ type, points, setActiveTab, setShowMyCoupons, handleRedeem, myItems, onNotificationClick }) => {
+  const items = type === 'coupon' ? couponsMock : giftsMock;
+  const themeColor = type === 'coupon' ? 'teal' : 'orange';
+  const bgColor = type === 'coupon' ? 'bg-teal-50 border-teal-100' : 'bg-orange-50 border-orange-100';
+  const textColor = type === 'coupon' ? 'text-teal-700' : 'text-orange-700';
+  const btnColor = type === 'coupon' ? 'bg-teal-600' : 'bg-orange-500';
+
+  return (
+    <div className="pb-24 animate-fade-in bg-gray-50 min-h-screen">
+       <TopBar title={type === 'coupon' ? "折價券兌換" : "小禮品兌換"} onBack={() => setActiveTab('home')} points={points} onNotificationClick={onNotificationClick} unreadCount={3} rightAction={<button onClick={() => setShowMyCoupons(true)} className="flex items-center bg-white/20 px-2 py-1 rounded text-xs text-white transition active:scale-95"><Wallet size={14} className="mr-1"/> 我的票券</button>} />
+       <div className="p-4 space-y-4">
+          <div className={`${bgColor} p-4 rounded-xl border flex justify-between items-center`}><div><p className="text-xs text-gray-500">目前持有點數</p><p className={`text-2xl font-bold ${textColor}`}>{points}</p></div>{type === 'coupon' ? <Ticket className="text-teal-300" size={40} /> : <Gift className="text-orange-300" size={40} />}</div>
+          <h3 className="font-bold text-gray-700">可兌換項目</h3>
+          <div className="space-y-3">{items.map(item => { const count = myItems.filter(i => i.id === item.id).length; return (<div key={item.id} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex items-center p-4">{item.icon && <div className="w-12 h-12 bg-gray-50 rounded-lg flex items-center justify-center text-2xl mr-4">{item.icon}</div>}<div className="flex-1"><div className="flex items-center"><h4 className="font-bold text-gray-800">{item.title}</h4>{count > 0 && <span className="ml-2 text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded border border-gray-200">持有 {count}</span>}</div><p className="text-xs text-gray-500">{item.desc}</p><p className={`text-sm font-bold mt-1 ${textColor}`}>{item.cost} 點</p></div><button onClick={() => handleRedeem(item)} className={`px-4 py-2 rounded-lg text-xs font-bold shadow-sm transition active:scale-95 text-white ${points >= item.cost ? btnColor : 'bg-gray-300'}`}>兌換</button></div>)})}</div>
+       </div>
+    </div>
+  );
+};
+
+const MyCouponsView = ({ myItems, setShowMyCoupons, setShowBarcode, setActiveTab, points, onNotificationClick }) => (
+  <div className="pb-24 animate-fade-in bg-gray-50 min-h-screen">
+     <TopBar title="我的票券夾" onBack={() => setShowMyCoupons(false)} points={points} onNotificationClick={onNotificationClick} unreadCount={3} />
+     <div className="p-4 space-y-4">
+        {myItems.length === 0 ? (<div className="flex flex-col items-center justify-center py-20 text-gray-400"><ShoppingBag size={48} className="mb-4 opacity-20" /><p>您尚未兌換任何商品</p><button onClick={()=>{setShowMyCoupons(false); setActiveTab('coupons')}} className="mt-4 text-teal-600 text-sm font-bold underline">去兌換中心逛逛</button></div>) : (myItems.map(item => (<div key={item.uid} onClick={() => setShowBarcode(item)} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden relative cursor-pointer hover:shadow-md transition active:scale-[0.99]"><div className={`absolute left-0 top-0 bottom-0 w-2 ${item.type === 'coupon' ? 'bg-orange-400' : 'bg-blue-400'}`}></div><div className="p-4 pl-6"><div className="flex justify-between items-start"><div><span className={`text-[10px] px-2 py-0.5 rounded text-white mb-1 inline-block ${item.type === 'coupon' ? 'bg-orange-400' : 'bg-blue-400'}`}>{item.type === 'coupon' ? '折價券' : '禮品券'}</span><h4 className="font-bold text-lg text-gray-800">{item.title}</h4><p className="text-xs text-gray-500">{item.desc}</p></div><ScanLine className="text-gray-300" size={24} /></div><div className="mt-3 pt-3 border-t border-gray-100 flex justify-between items-center"><span className="text-xs text-gray-400">兌換日期：{item.redeemDate}</span><span className="text-xs font-bold text-teal-600 bg-teal-50 px-2 py-1 rounded flex items-center"><Tag size={12} className="mr-1"/> 點擊顯示核銷條碼</span></div></div></div>)))}
+     </div>
+  </div>
+);
+
+const FavoritesView = ({ onBack, points, favorites }) => (
+  <div className="pb-24 animate-fade-in bg-gray-50 min-h-screen">
+    <TopBar title="我的收藏" onBack={onBack} points={points} />
+    <div className="p-4 space-y-4">
+      {favorites.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-20 text-gray-400">
+          <Heart size={48} className="mb-4 opacity-20" />
+          <p>您尚未收藏任何文章</p>
+        </div>
+      ) : (
+        favorites.map(article => (
+          <div key={article.id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex items-start cursor-pointer hover:shadow-md transition" onClick={() => window.open(article.url, '_blank')}>
+            <div className="w-16 h-16 bg-gray-200 rounded-lg flex items-center justify-center mr-4 shrink-0 text-gray-400">
+               <FileText size={24}/>
+            </div>
+            <div className="flex-1">
+               <h4 className="font-bold text-gray-800 line-clamp-2 mb-1">{article.title}</h4>
+               <span className="text-[10px] text-gray-400">{article.dateAdded} 加入</span>
+            </div>
+            <ChevronRight size={16} className="text-gray-300 mt-4"/>
+          </div>
+        ))
+      )}
+    </div>
+  </div>
+);
+
+const MyCashbackView = ({ onBack, points, cashbackBalance, onPay }) => (
+  <div className="pb-24 animate-fade-in bg-gray-50 min-h-screen">
+     <TopBar title="我的回饋金" onBack={onBack} points={points} />
+     <div className="p-6">
+        {/* 卡片區塊 */}
+        <div className="bg-gradient-to-br from-gray-800 to-black text-white p-6 rounded-2xl shadow-xl relative overflow-hidden mb-6">
+          <div className="relative z-10">
+            <div className="flex justify-between items-start mb-8">
+              <span className="text-gray-300 text-sm font-medium">可用餘額</span>
+              <Coins size={24} className="text-yellow-400"/>
+            </div>
+            <div className="mb-2">
+              <span className="text-4xl font-bold tracking-tight">NT$ {cashbackBalance.toLocaleString()}</span>
+            </div>
+            <div className="text-xs text-gray-400">
+              可用於門市消費折抵
+            </div>
+          </div>
+          {/* 背景裝飾 */}
+          <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl"></div>
+          <div className="absolute bottom-0 left-0 w-24 h-24 bg-teal-500/20 rounded-full translate-y-1/2 -translate-x-1/2 blur-2xl"></div>
+        </div>
+
+        {/* 操作按鈕 */}
+        <button 
+          onClick={onPay}
+          className="w-full py-4 bg-teal-600 text-white rounded-xl font-bold shadow-lg hover:bg-teal-700 transition active:scale-95 flex items-center justify-center text-lg mb-6"
+        >
+          <QrCode size={24} className="mr-3"/>
+          立即支付
+        </button>
+
+        {/* 交易紀錄模擬 */}
+        <div>
+          <h3 className="font-bold text-gray-800 mb-3">最近紀錄</h3>
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 divide-y divide-gray-100">
+             {cashbackBalance > 0 ? (
+               <div className="p-4 flex justify-between items-center">
+                 <div className="flex items-center">
+                   <div className="w-10 h-10 bg-green-100 text-green-600 rounded-lg flex items-center justify-center mr-3">
+                     <TrendingUp size={20}/>
+                   </div>
+                   <div>
+                     <p className="font-bold text-gray-800">挑戰賽回饋金</p>
+                     <p className="text-xs text-gray-400">{TODAY_DATE}</p>
+                   </div>
+                 </div>
+                 <span className="text-green-600 font-bold">+1,000</span>
+               </div>
+             ) : (
+               <div className="p-8 text-center text-gray-400 text-sm">
+                 尚無交易紀錄
+               </div>
+             )}
+          </div>
+        </div>
+     </div>
+  </div>
+);
+
+const ProfileView = ({ 
+  planMode, setShowMyCoupons, myItems, showToast, points, onNotificationClick, 
+  sharedWithMe, sharedWithOthers, onViewSharedUser, onAddShareClick, 
+  onShowFavorites, cashbackBalance, onOpenCashback
+}) => (
+  <div className="pb-24 animate-fade-in bg-gray-50">
+     <TopBar title="帳號與設定" points={points} onNotificationClick={onNotificationClick} unreadCount={1} />
+     <div className="bg-white p-5 mb-2 flex items-center space-x-4 shadow-sm">
+       <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center text-2xl font-bold text-gray-500">陳</div>
+       <div className="flex-1">
+         <h2 className="font-bold text-gray-800 text-lg">陳大明</h2>
+         <p className="text-sm text-gray-500">45 歲 | 0912-345-678</p>
+         <div className="flex flex-col mt-1 space-y-1">
+           <span className="text-[10px] bg-teal-100 text-teal-700 px-2 py-0.5 rounded w-fit">
+             躍獅健康同行 — 90天改善計畫訂閱者
+           </span>
+           <span className="text-[10px] bg-orange-100 text-orange-800 px-2 py-0.5 rounded w-fit">
+             躍獅健康逆轉 — 90天挑戰賽訂閱者
+           </span>
+         </div>
+       </div>
+       <button onClick={()=>showToast('編輯個人資料')} className="text-sm text-teal-600 font-bold border border-teal-600 rounded px-3 py-1">編輯</button>
+     </div>
+     
+     {/* 1. 與我共享 (Shared With Me) */}
+     <div className="bg-white p-4 mb-2 shadow-sm">
+        <SectionHeader icon={Users} title="與我共享" actionText="" />
+        <p className="text-xs text-gray-400 mb-3">以下親友將健康數據分享給您：</p>
+        <div className="flex space-x-4 overflow-x-auto pb-2">
+           {sharedWithMe.length === 0 ? (
+             <p className="text-xs text-gray-400 py-2">目前沒有人與您共享資料。</p>
+           ) : (
+             sharedWithMe.map(user => (
+               <div key={user.id} onClick={() => onViewSharedUser(user)} className="flex flex-col items-center min-w-[70px] cursor-pointer group">
+                  <div className="w-14 h-14 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 font-bold mb-2 border-2 border-white shadow-md group-active:scale-95 transition">
+                    {user.avatar || user.name[0]}
+                  </div>
+                  <span className="text-xs font-bold text-gray-700">{user.name}</span>
+                  <span className="text-[10px] text-gray-400">({user.relation})</span>
+               </div>
+             ))
+           )}
+        </div>
+     </div>
+
+     {/* 2. 與他共享 (Shared With Others) - 調整為一致樣式 */}
+     <div className="bg-white p-4 mb-2 shadow-sm">
+        <SectionHeader icon={Share2} title="與他共享" actionText="" />
+        <p className="text-xs text-gray-400 mb-3">您已將健康數據分享給以下對象 (最多3位)：</p>
+        <div className="flex space-x-4 overflow-x-auto pb-2 items-start">
+           {sharedWithOthers.map(user => (
+              <div key={user.id} className="flex flex-col items-center min-w-[70px] cursor-pointer group">
+                 <div className="w-14 h-14 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold mb-2 border-2 border-white shadow-md relative opacity-100 transition">
+                   {user.avatar || user.name[0]}
+                   {/* 狀態指示點 */}
+                   {user.status === 'pending' && <div className="absolute top-0 right-0 w-3 h-3 bg-yellow-400 rounded-full border border-white"></div>}
+                 </div>
+                 <span className="text-xs font-bold text-gray-700">{user.name}</span>
+                 {user.status === 'pending' ? (
+                   <span className="text-[10px] text-yellow-600 font-bold bg-yellow-50 px-1 py-0.5 rounded mt-0.5">待確認</span>
+                 ) : (
+                   <span className="text-[10px] text-gray-400 mt-0.5">({user.relation})</span>
+                 )}
+              </div>
+           ))}
+
+           {sharedWithOthers.length < 3 && (
+              <button onClick={onAddShareClick} className="flex flex-col items-center min-w-[70px] group">
+                 <div className="w-14 h-14 rounded-full bg-gray-50 border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-400 mb-2 group-hover:border-teal-300 group-hover:text-teal-500 transition">
+                    <Plus size={24}/>
+                 </div>
+                 <span className="text-xs font-bold text-gray-400 group-hover:text-teal-500">新增</span>
+                 <span className="text-[10px] text-transparent">.</span>
+              </button>
+           )}
+        </div>
+     </div>
+
+     <div onClick={onShowFavorites} className="bg-white p-4 mb-2 shadow-sm flex items-center justify-between cursor-pointer hover:bg-gray-50"><div className="flex items-center text-gray-700"><Heart size={20} className="mr-3 text-red-500"/><span className="font-bold">我的收藏</span></div><div className="flex items-center text-gray-400"><ChevronRight size={16}/></div></div>
+     <div onClick={()=>setShowMyCoupons(true)} className="bg-white p-4 mb-2 shadow-sm flex items-center justify-between cursor-pointer hover:bg-gray-50"><div className="flex items-center text-gray-700"><Wallet size={20} className="mr-3 text-teal-600"/><span className="font-bold">我的票券夾</span></div><div className="flex items-center text-gray-400"><span className="text-xs mr-2">{myItems.length} 張</span><ChevronRight size={16}/></div></div>
+     
+     {/* 我的回饋金 */}
+     <div onClick={onOpenCashback} className="bg-white p-4 mb-2 shadow-sm flex items-center justify-between cursor-pointer hover:bg-gray-50">
+       <div className="flex items-center text-gray-700">
+         <Coins size={20} className="mr-3 text-yellow-500"/>
+         <span className="font-bold">我的回饋金</span>
+       </div>
+       <div className="flex items-center text-gray-400">
+         <span className="text-xs mr-2 font-bold text-gray-800">NT$ {cashbackBalance.toLocaleString()}</span>
+         <ChevronRight size={16}/>
+       </div>
+     </div>
+
+     <div className="bg-white mt-2 shadow-sm divide-y divide-gray-100">{[{label: '方案訂閱與付款管理', icon: CreditCard, action: '管理'}, {label: '推播通知設定', icon: Bell, action: '開啟'}, {label: '保健品/任務提醒開關', icon: Clock, action: '設定'}, {label: '隱私與權限設定', icon: Shield, action: '查看'}, {label: '聯絡藥局 / 客服', icon: Phone, action: '撥打'}].map((item, i) => (<button key={i} onClick={()=>showToast(`進入 ${item.label}`)} className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition"><div className="flex items-center text-gray-700"><item.icon size={20} className="mr-3 text-gray-400"/><span className="text-sm font-medium">{item.label}</span></div><div className="flex items-center text-gray-400 text-xs"><span className="mr-2">{item.action}</span><ChevronRight size={16}/></div></button>))}<button onClick={()=>showToast('已登出')} className="w-full flex items-center justify-between p-4 hover:bg-red-50 text-red-500 transition"><div className="flex items-center"><LogOut size={20} className="mr-3"/><span className="text-sm font-medium">登出</span></div></button></div>
+  </div>
+);
+
+// --- Main App Component ---
+
+export default function YesChainUltimateApp() {
+  const [activeTab, setActiveTab] = useState('home');
+  const [healthSubTab, setHealthSubTab] = useState(null); 
+  const [planMode, setPlanMode] = useState('improve'); 
+  const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
+  const [showChat, setShowChat] = useState(false);
+  const [showFullReport, setShowFullReport] = useState(false);
+  const [showMyCoupons, setShowMyCoupons] = useState(false);
+  const [showBarcode, setShowBarcode] = useState(null); 
+  const [showAddMedModal, setShowAddMedModal] = useState(false); 
+  
+  // 共享功能相關 State
+  const [sharedWithMe, setSharedWithMe] = useState(initialSharedWithMe);
+  const [sharedWithOthers, setSharedWithOthers] = useState(initialSharedWithOthers);
+  const [showAddShareModal, setShowAddShareModal] = useState(false);
+  const [viewingSharedUser, setViewingSharedUser] = useState(null); // 當前正在檢視的共享者
+  const [inviteModalData, setInviteModalData] = useState(null); // 接收邀請的 modal
+  
+  // 報告相關
+  const [selectedSimpleReport, setSelectedSimpleReport] = useState(null); 
+  const [selectedDetailedReport, setSelectedDetailedReport] = useState(null);
+  
+  // 收藏相關
+  const [favorites, setFavorites] = useState([]);
+  const [showFavorites, setShowFavorites] = useState(false);
+
+  // 回饋金相關
+  const [cashbackBalance, setCashbackBalance] = useState(0);
+  const [hasClaimedCashback, setHasClaimedCashback] = useState(false); // 新增：是否已領取回饋金
+
+  // 健康紀錄數據 (新增: 用 State 管理，以即時更新)
+  const [healthRecords, setHealthRecords] = useState(initialHealthData);
+
+  const [tasks, setTasks] = useState(tasksMock);
+  const [medications, setMedications] = useState(medicationInitial);
+  const [points, setPoints] = useState(1500); 
+  const [dailyEarned, setDailyEarned] = useState(0); 
+  const [hasCheckedIn, setHasCheckedIn] = useState(false);
+  const [myItems, setMyItems] = useState([]); 
+  const [notifications, setNotifications] = useState(notificationsInitial);
+  const [chatMessages, setChatMessages] = useState([{ id: 1, text: '您好！我是躍獅 AI 藥師助理。請點擊下方選項，讓我為您提供協助：', sender: 'bot' }]);
+  const chatEndRef = useRef(null);
+
+  const showToast = (message, type = 'success') => {
+    setToast({ show: true, message, type });
+    setTimeout(() => setToast({ ...toast, show: false }), 2500);
+  };
+
+  const handleOptionClick = (option) => {
+    setChatMessages(prev => [
+      ...prev, 
+      { sender: 'user', text: option.label },
+      { sender: 'bot', text: option.response }
+    ]);
+  };
+
+  const earnPoints = (amount, sourceName) => {
+    if (dailyEarned >= MAX_DAILY_POINTS) {
+      showToast(`${sourceName}完成！(今日已達上限)`, 'info');
+      return false; 
+    }
+    const remainingQuota = MAX_DAILY_POINTS - dailyEarned;
+    const actualEarned = Math.min(amount, remainingQuota);
+    setPoints(prev => prev + actualEarned);
+    setDailyEarned(prev => prev + actualEarned);
+    showToast(`${sourceName}成功！獲得 ${actualEarned} 點`);
+    return true;
+  };
+
+  const handleCheckIn = () => {
+    if (hasCheckedIn) return showToast('今日已經簽到過了喔！', 'info');
+    earnPoints(10, '每日簽到');
+    setHasCheckedIn(true); 
+  };
+
+  const toggleTask = (id) => {
+    setTasks(tasks.map(t => {
+      if (t.id === id && !t.completed) {
+        earnPoints(t.points, '任務完成');
+        return { ...t, completed: true };
+      }
+      return t;
+    }));
+  };
+
+  const takeMedication = (id) => {
+    setMedications(prev => prev.map(med => {
+      if (med.id === id && !med.taken) {
+        earnPoints(5, '準時服藥'); 
+        return { ...med, taken: true, stock: med.stock - 1 };
+      }
+      return med;
+    }));
+  };
+
+  const handleAddMedication = (newMed) => {
+    if(!newMed.name) return showToast('請輸入藥物名稱', 'error');
+    const newItem = { id: Date.now(), ...newMed, unit: '顆', taken: false };
+    setMedications([...medications, newItem]);
+    setShowAddMedModal(false);
+    showToast('用藥提醒已新增');
+  };
+
+  const handleRedeem = (item) => {
+    if (points < item.cost) {
+      showToast(`點數還差 ${item.cost - points} 點喔！加油 💪`, 'error');
+      return;
+    }
+    setPoints(prev => prev - item.cost);
+    const newItem = { ...item, redeemDate: TODAY_DATE, uid: Date.now() };
+    setMyItems(prev => [newItem, ...prev]);
+    showToast(`兌換成功！已存入「我的票券夾」`);
+  };
+
+  const handleOpenDetailedReport = (reportOrId) => {
+    // 支援直接傳物件或 ID
+    const report = typeof reportOrId === 'object' ? reportOrId : reportsMock.find(r => r.id === reportOrId);
+    if (report) {
+      setSelectedDetailedReport(report);
+    }
+  };
+
+  const handleOpenSimpleReport = (report) => {
+    setSelectedSimpleReport(report);
+  };
+
+  // --- 共享功能處理 ---
+
+  // 1. 發送邀請 (新增與他共享)
+  const handleAddShare = (data) => {
+    if (!data.name) return showToast('請輸入姓名', 'error');
+    // 注意：手機格式驗證已移至 Modal 內部處理
+    const newUser = { id: Date.now().toString(), name: data.name, relation: data.relation, status: 'pending', avatar: data.name[0] };
+    setSharedWithOthers([...sharedWithOthers, newUser]);
+    setShowAddShareModal(false);
+    showToast(`已發送邀請給 ${data.name}`);
+  };
+
+  // 2. 點擊通知中的邀請
+  const handleInviteClick = (notif) => {
+    setInviteModalData({ payload: notif.payload, notifId: notif.id });
+  };
+
+  // 3. 接受邀請
+  const handleAcceptInvite = (invite) => {
+    const newUser = { id: invite.payload.id, name: invite.payload.name, relation: invite.payload.relation, avatar: invite.payload.name[0] };
+    setSharedWithMe([...sharedWithMe, newUser]);
+    // 標記通知已讀或移除
+    setNotifications(prev => prev.filter(n => n.id !== invite.notifId));
+    setInviteModalData(null);
+    showToast(`您已成為 ${newUser.name} 的共享者`, 'success');
+  };
+
+  // 4. 拒絕邀請
+  const handleDeclineInvite = (invite) => {
+    setNotifications(prev => prev.filter(n => n.id !== invite.notifId));
+    setInviteModalData(null);
+    showToast(`已拒絕 ${invite.payload.name} 的邀請`, 'info');
+  };
+
+  // 5. 開啟共享使用者 (首頁點擊母親)
+  const handleOpenSharedUser = (user) => {
+    setViewingSharedUser(user);
+  }
+
+  // 6. 領取回饋金
+  const handleClaimCashback = () => {
+    if (hasClaimedCashback) return;
+    setCashbackBalance(prev => prev + 1000);
+    setHasClaimedCashback(true);
+    showToast('已成功領取回饋金 NT$ 1,000', 'success');
+  }
+
+  // --- 健康數據更新處理 (新增) ---
+  const updateHealthRecord = (updates) => {
+     setHealthRecords(prev => {
+        // 檢查是否已有今日的數據
+        const todayIndex = prev.findIndex(r => r.fullDate === TODAY_DATE);
+        
+        if (todayIndex >= 0) {
+           // 如果有，更新該筆資料
+           const newRecords = [...prev];
+           newRecords[todayIndex] = { ...newRecords[todayIndex], ...updates };
+           return newRecords;
+        } else {
+           // 如果沒有，創建一筆今日的新資料 (繼承昨天的其他數值以免圖表斷裂)
+           const yesterday = prev[prev.length - 1];
+           const newRecord = {
+              fullDate: TODAY_DATE,
+              date: TODAY_DATE.slice(5),
+              sys: yesterday?.sys || 120,
+              dia: yesterday?.dia || 80,
+              sugar: yesterday?.sugar || 100,
+              weight: yesterday?.weight || 68,
+              sleep: yesterday?.sleep || 7,
+              ...updates
+           };
+           return [...prev, newRecord];
+        }
+     });
+  };
+
+  const handleUpdateBP = (sys, dia) => {
+     if (!sys || !dia) return showToast('請輸入收縮壓與舒張壓', 'error');
+     updateHealthRecord({ sys: Number(sys), dia: Number(dia) });
+     showToast('血壓紀錄成功，圖表已更新');
+     earnPoints(5, '測量血壓');
+     // 不關閉頁面，讓使用者查看圖表
+  };
+
+  const handleUpdateSugar = (val) => {
+     if (!val) return showToast('請輸入血糖數值', 'error');
+     updateHealthRecord({ sugar: Number(val) });
+     showToast('血糖紀錄成功，圖表已更新');
+     earnPoints(5, '測量血糖');
+  };
+
+  const handleUpdateWeight = (val) => {
+     if (!val) return showToast('請輸入體重', 'error');
+     updateHealthRecord({ weight: Number(val) });
+     showToast('體重紀錄成功，圖表已更新');
+     earnPoints(5, '量體重');
+  };
+
+  const handleUpdateSleep = (val) => {
+     if (!val) return showToast('請輸入睡眠時數', 'error');
+     updateHealthRecord({ sleep: Number(val) });
+     showToast('睡眠紀錄成功，圖表已更新');
+     earnPoints(5, '紀錄睡眠');
+  };
+
+  const handleSaveDiet = () => {
+     showToast('飲食紀錄成功');
+     earnPoints(5, '紀錄飲食');
+     // 飲食不需更新圖表，也不關閉頁面
+  };
+
+  const handleSaveExercise = () => {
+     showToast('運動紀錄成功');
+     earnPoints(10, '紀錄運動');
+     // 運動不需更新圖表，也不關閉頁面
+  };
+
+  return (
+    <div className="w-full max-w-md mx-auto h-screen bg-gray-100 relative shadow-2xl overflow-hidden font-sans">
+      <div className="h-full overflow-y-auto scrollbar-hide">
+         {showMyCoupons ? (
+            <MyCouponsView myItems={myItems} setShowMyCoupons={setShowMyCoupons} setShowBarcode={setShowBarcode} setActiveTab={setActiveTab} points={points} onNotificationClick={() => setActiveTab('notifications')} />
+         ) : showFavorites ? (
+            <FavoritesView onBack={() => setShowFavorites(false)} points={points} favorites={favorites} />
+         ) : activeTab === 'cashback' ? (
+            <MyCashbackView 
+              onBack={() => setActiveTab('profile')} 
+              points={points} 
+              cashbackBalance={cashbackBalance}
+              onPay={() => setShowBarcode({ title: '回饋金支付', desc: '門市消費折抵', uid: 'PAY-' + Date.now(), type: 'payment' })}
+            />
+         ) : selectedDetailedReport ? (
+            /* 詳細版月報 */
+            <DetailedReportModal report={selectedDetailedReport} onClose={() => setSelectedDetailedReport(null)} longTermData={healthRecords} points={points} showToast={showToast} />
+         ) : selectedSimpleReport ? (
+            /* 簡單版月報 */
+            <SimpleReportModal report={selectedSimpleReport} onClose={() => setSelectedSimpleReport(null)} longTermData={healthRecords} points={points} />
+         ) : (
+            <>
+               {activeTab === 'home' && (
+                 <HomeView 
+                   dailyEarned={dailyEarned} handleCheckIn={handleCheckIn} hasCheckedIn={hasCheckedIn} 
+                   points={points} setActiveTab={setActiveTab} medications={medications} 
+                   takeMedication={takeMedication} setShowAddMedModal={setShowAddMedModal} 
+                   showToast={showToast} tasks={tasks} toggleTask={toggleTask}
+                   onNotificationClick={() => setActiveTab('notifications')}
+                   handleOpenSharedUser={handleOpenSharedUser}
+                 />
+               )}
+               {activeTab === 'notifications' && (
+                 <NotificationView 
+                    onBack={() => setActiveTab('home')} 
+                    onOpenReport={handleOpenDetailedReport}
+                    onInviteClick={handleInviteClick}
+                    points={points}
+                    notifications={notifications}
+                    setNotifications={setNotifications}
+                    setActiveTab={setActiveTab}
+                 />
+               )}
+               {activeTab === 'coupons' && <RedeemView type="coupon" points={points} setActiveTab={setActiveTab} setShowMyCoupons={setShowMyCoupons} handleRedeem={handleRedeem} myItems={myItems} onNotificationClick={() => setActiveTab('notifications')} />}
+               {activeTab === 'gifts' && <RedeemView type="gift" points={points} setActiveTab={setActiveTab} setShowMyCoupons={setShowMyCoupons} handleRedeem={handleRedeem} myItems={myItems} onNotificationClick={() => setActiveTab('notifications')} />}
+               
+               {activeTab === 'edu' && <EduView setShowChat={setShowChat} showToast={showToast} points={points} setPoints={setPoints} onNotificationClick={() => setActiveTab('notifications')} favorites={favorites} setFavorites={setFavorites} />}
+               
+               {activeTab === 'health' && (
+                  <HealthView 
+                    points={points} showToast={showToast} 
+                    subTab={healthSubTab} setSubTab={setHealthSubTab}
+                    medications={medications}
+                    onNotificationClick={() => setActiveTab('notifications')}
+                    onViewSimpleReport={handleOpenSimpleReport}
+                    healthRecords={healthRecords}
+                    onUpdateBP={handleUpdateBP}
+                    onUpdateSugar={handleUpdateSugar}
+                    onUpdateWeight={handleUpdateWeight}
+                    onUpdateSleep={handleUpdateSleep}
+                    onSaveDiet={handleSaveDiet}
+                    onSaveExercise={handleSaveExercise}
+                  />
+               )}
+               
+               {activeTab === 'plan' && <PlanView planMode={planMode} setPlanMode={setPlanMode} showToast={showToast} points={points} onNotificationClick={() => setActiveTab('notifications')} setShowBarcode={setShowBarcode} onClaimCashback={handleClaimCashback} hasClaimedCashback={hasClaimedCashback} />}
+               
+               {activeTab === 'profile' && (
+                  <ProfileView 
+                    planMode={planMode} 
+                    setShowMyCoupons={setShowMyCoupons} 
+                    myItems={myItems} 
+                    showToast={showToast} 
+                    points={points}
+                    onNotificationClick={() => setActiveTab('notifications')}
+                    sharedWithMe={sharedWithMe}
+                    sharedWithOthers={sharedWithOthers}
+                    onViewSharedUser={setViewingSharedUser}
+                    onAddShareClick={() => setShowAddShareModal(true)}
+                    onShowFavorites={() => setShowFavorites(true)}
+                    cashbackBalance={cashbackBalance}
+                    onOpenCashback={() => setActiveTab('cashback')}
+                  />
+               )}
+            </>
+         )}
+      </div>
+
+      <BarcodeModal showBarcode={showBarcode} setShowBarcode={setShowBarcode} />
+      {showAddMedModal && <AddMedicationModal onClose={()=>setShowAddMedModal(false)} onAdd={handleAddMedication} />}
+      <FullReportView showFullReport={showFullReport} setShowFullReport={setShowFullReport} showToast={showToast} />
+      <ChatOverlay showChat={showChat} setShowChat={setShowChat} chatMessages={chatMessages} handleOptionClick={handleOptionClick} chatEndRef={chatEndRef} />
+      
+      {/* 共享相關 Modals */}
+      <AddShareModal show={showAddShareModal} onClose={() => setShowAddShareModal(false)} onAdd={handleAddShare} />
+      <InviteConfirmModal invite={inviteModalData} onClose={() => setInviteModalData(null)} onAccept={handleAcceptInvite} onDecline={handleDeclineInvite} />
+      <SharedUserView user={viewingSharedUser} onClose={() => setViewingSharedUser(null)} onOpenReport={handleOpenDetailedReport} showToast={showToast} />
+
+      <div className={`fixed top-16 left-1/2 transform -translate-x-1/2 bg-gray-800/90 backdrop-blur text-white px-4 py-2 rounded-full text-sm shadow-xl transition-all duration-300 pointer-events-none flex items-center z-[80] ${toast.show ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
+         {toast.type === 'error' ? <AlertCircle size={16} className="mr-2 text-red-400"/> : <CheckCircle size={16} className="mr-2 text-teal-400"/>}
+         {toast.message}
+      </div>
+
+      <div className="fixed bottom-0 w-full max-w-md bg-white border-t border-gray-200 py-2 px-4 flex justify-between items-center z-40 pb-safe shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+         {[
+            {id: 'home', icon: Home, label: '首頁'},
+            {id: 'edu', icon: BookOpen, label: '衛教'},
+            {id: 'health', icon: Activity, label: '紀錄'},
+            {id: 'plan', icon: Heart, label: '方案'},
+            {id: 'profile', icon: User, label: '我的'},
+         ].map(item => {
+            const isActive = activeTab === item.id || (item.id === 'home' && activeTab === 'notifications'); 
+            return (
+               <button key={item.id} onClick={()=>{setActiveTab(item.id); setHealthSubTab(null); setShowMyCoupons(false); setShowFavorites(false); setSelectedDetailedReport(null); setSelectedSimpleReport(null); setViewingSharedUser(null);}} className={`flex flex-col items-center w-12 transition ${isActive ? 'text-teal-700' : 'text-gray-400'}`}>
+                  <div className={`mb-1 ${isActive ? 'translate-y-[-2px]' : ''} transition-transform`}>
+                     <item.icon size={24} strokeWidth={isActive ? 2.5 : 2} fill={isActive && item.id !== 'health' && item.id !== 'profile' ? 'currentColor' : 'none'} />
+                  </div>
+                  <span className="text-[10px] font-bold">{item.label}</span>
+               </button>
+            )
+         })}
+      </div>
+    </div>
+  );
+}
